@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<configuration scan="true" scanPeriod="10000">
+
+    <!-- code line模块：监控日志 -->
+<!--    <logger name="CODE-COVERAGE-LOGGER" level="INFO">-->
+        <appender name="CODE-COVERAGE-LOGGER" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${user.home}/logs/sandbox/code-coverage.log</file>
+            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                <FileNamePattern>${user.home}/logs/sandbox/code-coverage.log.%d{yyyy-MM-dd}</FileNamePattern>
+                <MaxHistory>15</MaxHistory>
+            </rollingPolicy>
+            <encoder>
+                <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %msg%n</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+<!--            <filter class="ch.qos.logback.classic.filter.LevelFilter">-->
+<!--                <level>info</level>-->
+<!--                <onMatch>ACCEPT</onMatch>-->
+<!--                <onMismatch>DENY</onMismatch>-->
+<!--            </filter>-->
+        </appender>
+<!--    </logger>-->
+        <appender name="CODE-ASYN-SERVER-INFO-LOGGER" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${user.home}/logs/sandbox/code-asyn-serverinfo-warn.log</file>
+            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                <FileNamePattern>${user.home}/logs/sandbox/code-asyn-serverinfo-warn.log.%d{yyyy-MM-dd}</FileNamePattern>
+                <MaxHistory>15</MaxHistory>
+            </rollingPolicy>
+            <encoder>
+                <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %msg%n</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+                <filter class="ch.qos.logback.classic.filter.LevelFilter">
+                    <level>warn</level>
+                    <onMatch>ACCEPT</onMatch>
+                    <onMismatch>DENY</onMismatch>
+                </filter>
+        </appender>
+
+
+<!--    <logger name="CODE-COVERAGE-LOGGER" level="ERROR">-->
+        <appender name="RollingFileError" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${user.home}/logs/sandbox/code-coverage-error.log</file>
+            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                <FileNamePattern>${user.home}/logs/sandbox/code-coverage-error.log.%d{yyyy-MM-dd}</FileNamePattern>
+                <MaxHistory>15</MaxHistory>
+            </rollingPolicy>
+            <encoder>
+                <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %msg%n</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+            <filter class="ch.qos.logback.classic.filter.LevelFilter">
+                <level>error</level>
+                <onMatch>ACCEPT</onMatch>
+                <onMismatch>DENY</onMismatch>
+            </filter>
+        </appender>
+<!--    </logger>-->
+
+    <root level="info">
+        <appender-ref ref="CODE-COVERAGE-LOGGER"/>
+        <appender-ref ref="RollingFileError"/>
+        <appender-ref ref="CODE-ASYN-SERVER-INFO-LOGGER"/>
+    </root>
+<!--     ERROR模块默认日志 -->
+<!--    <root level="ERROR">-->
+<!--        <appender class="ch.qos.logback.core.rolling.RollingFileAppender">-->
+<!--            <file>${user.home}/logs/sandbox/error.log</file>-->
+<!--            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">-->
+<!--                <FileNamePattern>${user.home}/logs/sandbox/error.log.%d{yyyy-MM-dd}</FileNamePattern>-->
+<!--                <MaxHistory>30</MaxHistory>-->
+<!--            </rollingPolicy>-->
+<!--            <encoder>-->
+<!--                <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %msg%n</pattern>-->
+<!--                <charset>UTF-8</charset>-->
+<!--            </encoder>-->
+<!--            <filter class="ch.qos.logback.classic.filter.LevelFilter">-->
+<!--                <level>ERROR</level>-->
+<!--                <onMatch>ACCEPT</onMatch>-->
+<!--                <onMismatch>DENY</onMismatch>-->
+<!--            </filter>-->
+<!--        </appender>-->
+<!--    </root>-->
+
+    <!-- 模块：LifeCycle监控日志 -->
+<!--    <logger name="DEBUG-LIFECYCLE-LOGGER" level="INFO">-->
+<!--        <appender class="ch.qos.logback.core.rolling.RollingFileAppender">-->
+<!--            <file>${user.home}/logs/sandbox/debug/lifecycle-monitor.log</file>-->
+<!--            <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">-->
+<!--                <FileNamePattern>${user.home}/logs/sandbox/debug/lifecycle-monitor.log.%d{yyyy-MM-dd}</FileNamePattern>-->
+<!--                <MaxHistory>30</MaxHistory>-->
+<!--            </rollingPolicy>-->
+<!--            <encoder>-->
+<!--                <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %msg%n</pattern>-->
+<!--                <charset>UTF-8</charset>-->
+<!--            </encoder>-->
+<!--        </appender>-->
+<!--    </logger>-->
+</configuration>

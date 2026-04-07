@@ -1,0 +1,89 @@
+# ============================================
+# DeepCover 配置文件示例
+# ============================================
+#
+# 使用说明：
+# 1. 复制此文件为 deepcover.properties
+# 2. 根据实际情况修改以下占位符
+#
+# ============================================
+
+# ============================================
+# 环境配置
+# ============================================
+
+#dev local debug
+#dev.dataCenterAddr=http://127.0.0.1:8081/aSyncSendDelayWithTraceId
+#dev.configCenterAddr=http://127.0.0.1:8085
+
+# ============================================
+# 测试环境配置
+# ============================================
+
+test.dataCenterAddr=http://YOUR_DATACENTER_ADDR/aSyncSendDelay
+test.configCenterAddr=http://YOUR_CONFIG_CENTER_ADDR
+
+# ============================================
+# 生产/模拟环境配置
+# ============================================
+
+pre.dataCenterAddr=http://YOUR_DATACENTER_ADDR/aSyncSendDelay
+pre.configCenterAddr=http://YOUR_CONFIG_CENTER_ADDR
+
+# ============================================
+# 配置中心 API 路径
+# ============================================
+
+# 从配置中心获取 DeepCover 信息的地址
+getDeepCoverInfo=/deepcover-brain/deepcover/info
+
+# 上报服务器信息到配置中心的地址
+reportServerInfo=/deepcover-brain/deepcover/report/server/info
+
+# ============================================
+# Kafka 配置
+# ============================================
+
+#dev local debug kafka
+#dev.KAFKA_BOOTSTRAP_SERVERS=127.0.0.1:9094,127.0.0.1:9095,127.0.0.1:9096
+#dev.KAFKA_TOPIC=deepcover-collection-code-info
+
+# ============================================
+# 测试环境 Kafka 配置
+# ============================================
+
+# Kafka 集群地址，多个地址用逗号分隔
+test.KAFKA_BOOTSTRAP_SERVERS=YOUR_KAFKA_BROKER_1:9094,YOUR_KAFKA_BROKER_2:9095,YOUR_KAFKA_BROKER_3:9096
+
+# Kafka 主题名称
+test.KAFKA_TOPIC=YOUR_KAFKA_TOPIC
+
+# ============================================
+# 生产/模拟环境 Kafka 配置
+# ============================================
+
+# Kafka 集群地址，多个地址用逗号分隔
+pre.KAFKA_BOOTSTRAP_SERVERS=YOUR_KAFKA_BROKER_1:9094,YOUR_KAFKA_BROKER_2:9095,YOUR_KAFKA_BROKER_3:9096
+
+# Kafka 主题名称
+pre.KAFKA_TOPIC=YOUR_KAFKA_TOPIC
+
+# ============================================
+# 性能配置
+# ============================================
+
+# 单请求采集的最大代码节点数，超过此值不发送
+# 默认值：500
+limit.codeInfo.size=500
+
+# 单方法最大行号采集次数，超过此值警告
+# 默认值：500
+#limit.codeInfo.line.size=500
+
+# ============================================
+# 日志级别配置
+# ============================================
+
+# 0:error, 1:warn, 2:info, 3:debug, 4:trace
+# 默认值：0
+log.level=0
