@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.alibaba.jvm.sandbox</groupId>
+        <artifactId>sandbox</artifactId>
+        <version>1.4.0</version>
+    </parent>
+    <artifactId>sandbox-spy</artifactId>
+    <name>sandbox-spy ${sandbox.version}</name>
+
+    <properties>
+        <maven.deploy.skip>true</maven.deploy.skip>
+        <maven.install.skip>true</maven.install.skip>
+        <jar.name.descriptorRef>jar-with-dependencies</jar.name.descriptorRef>
+    </properties>
+
+    <build>
+        <finalName>sandbox-spy-${project.version}</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>attached</goal>
+                        </goals>
+                        <phase>package</phase>
+                        <configuration>
+                            <descriptorRefs>
+                                <descriptorRef>${jar.name.descriptorRef}</descriptorRef>
+                            </descriptorRefs>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-antrun-plugin</artifactId>
+            <executions>
+                <execution>
+                    <id>copy</id>
+                    <phase>package</phase>
+                    <configuration>
+                        <tasks>
+                            <!-- 将默认生成的jar复制到指定目录并重命名 -->
+                            <copy  tofile="${project.basedir}/../sandbox/lib/${project.artifactId}.jar"
+                                   file="${project.build.directory}/${project.artifactId}-${project.version}-${jar.name.descriptorRef}.jar"
+                                   verbose="true">
+                            </copy>
+                        </tasks>
+                    </configuration>
+                    <goals>
+                        <goal>run</goal>
+                    </goals>
+                </execution>
+            </executions>
+        </plugin>
+        </plugins>
+    </build>
+
+</project>
