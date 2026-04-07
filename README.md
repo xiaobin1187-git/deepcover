@@ -1,4 +1,6 @@
-# DeepCover - 代码覆盖率采集 Agent
+# DeepCover - 代码全链路覆盖率采集 Agent
+
+**[中文](README.md)** | [English](README_EN.md) | [日本語](README_JA.md) | [Francais](README_FR.md) | [Portugues](README_PT.md) | [Русский](README_RU.md)
 
 <div align="center">
 
