@@ -4,6 +4,7 @@ import io.deepcover.agent.config.DeepCoverConfig;
 import io.deepcover.agent.config.kafka.KafkaProducerEngine;
 import io.deepcover.agent.entity.CodeEntity;
 import io.deepcover.agent.util.ExceptionAwareUtil;
+import io.deepcover.agent.util.MetricsCollector;
 import io.deepcover.agent.util.http.HttpClient2;
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,10 +34,12 @@ public class LocalAsyncConfig {
                 }else if(DeepCoverConfig.sendDataCenterType==2){
                     KafkaProducerEngine.batchSendMessage(msg);
                 }
+                MetricsCollector.sendSuccess.addAndGet(msg.size());
                 log.debug(Thread.currentThread().getId() + "." + Thread.currentThread().getName() + ":消费数据条数=" + msg.size());
 
             }catch(Exception e){
                 log.error("队列消费异常：采集发送数据异常");
+                MetricsCollector.sendFailed.addAndGet(msg.size());
                 ExceptionAwareUtil.exceptionOverflow(e);
             }
 

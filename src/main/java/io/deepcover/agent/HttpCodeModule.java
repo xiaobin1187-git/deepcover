@@ -16,6 +16,7 @@ import io.deepcover.agent.ext.CodeAdviceListener;
 import io.deepcover.agent.ext.CodeEventWatchBuilder;
 import io.deepcover.agent.util.CodeInfoReflectionUtils;
 import io.deepcover.agent.util.ExceptionAwareUtil;
+import io.deepcover.agent.util.MetricsCollector;
 import io.deepcover.agent.util.TraceContext;
 import io.deepcover.agent.util.http.HttpAccessUtil;
 import io.deepcover.agent.util.http.HttpClient2;
@@ -78,6 +79,7 @@ public class HttpCodeModule {
                 String clzName=advice.getBehavior().getDeclaringClass().getName();
                 if (clzName.equals("javax.servlet.http.HttpServlet")) {
                     String traceId = TraceContext.traceId();
+                    MetricsCollector.totalRequests.incrementAndGet();
                     //如果递进调用过程中的顶层通知，就在attachment中新增一个map，用于存放后续代码行信息
                     CodeEntity codeEntity =new CodeEntity();
                     codeEntity.setType("HTTP");

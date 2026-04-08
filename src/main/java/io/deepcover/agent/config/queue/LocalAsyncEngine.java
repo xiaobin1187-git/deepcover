@@ -1,6 +1,7 @@
 package io.deepcover.agent.config.queue;
 
 import io.deepcover.agent.entity.CodeEntity;
+import io.deepcover.agent.util.MetricsCollector;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
@@ -97,6 +98,7 @@ public class LocalAsyncEngine {
         QueueAndSize queueAndSize = qList.get(queueSelect);
         boolean isSend = queueAndSize.offer(codeEntity);
         if(!isSend){
+            MetricsCollector.queueOfferFailed.incrementAndGet();
             log.warn("发送队列已满,不发送,队列{}当前长度={},traceId={},url={}",queueSelect,queueAndSize.queue.size(),codeEntity.getTraceId(),codeEntity.getUrl());
         }
         return isSend;
