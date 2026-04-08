@@ -36,7 +36,9 @@ PRODUCT-*
 OSS-PREP-PROGRESS.md
 oss-*.bat
 oss-*.ps1
-docs/
+docs/*.md
+!docs/deployment-guide.md
+!docs/configuration-guide.md
 *分析报告*
 *隐患*
 *深度分析*
