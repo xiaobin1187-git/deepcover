@@ -1,6 +1,6 @@
-# DeepCover 配置指南
+# DeepCover Configuration Guide
 
-[中文](configuration-guide.md) | [English](configuration-guide_en.md) | [日本語](configuration-guide_ja.md) | [Francais](configuration-guide_fr.md) | [Portugues](configuration-guide_pt.md) | [Русский](configuration-guide_ru.md)
+[中文](configuration-guide.md) | **English** | [日本語](configuration-guide_ja.md) | [Francais](configuration-guide_fr.md) | [Portugues](configuration-guide_pt.md) | [Русский](configuration-guide_ru.md)
 
 ## Configuration Methods
 

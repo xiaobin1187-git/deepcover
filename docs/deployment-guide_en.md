@@ -1,6 +1,6 @@
-# DeepCover 部署指南
+# DeepCover Deployment Guide
 
-[中文](deployment-guide.md) | [English](deployment-guide_en.md) | [日本語](deployment-guide_ja.md) | [Francais](deployment-guide_fr.md) | [Portugues](deployment-guide_pt.md) | [Русский](deployment-guide_ru.md)
+[中文](deployment-guide.md) | **English** | [日本語](deployment-guide_ja.md) | [Francais](deployment-guide_fr.md) | [Portugues](deployment-guide_pt.md) | [Русский](deployment-guide_ru.md)
 
 ## Environment Requirements
 
@@ -90,7 +90,7 @@ cp src/main/resources/deepcover.properties.example \
    src/main/resources/deepcover.properties
 ```
 
-See [configuration-guide.md](configuration-guide.md) for detailed parameter descriptions.
+See [configuration-guide_en.md](configuration-guide_en.md) for detailed parameter descriptions.
 
 ## Step 6: Verify Installation
 
@@ -100,7 +100,7 @@ See [configuration-guide.md](configuration-guide.md) for detailed parameter desc
 tail -f ~/sandbox/sandbox.log | grep "code-module"
 ```
 
-You should see: `code-module 加载完成`
+You should see the module loaded successfully.
 
 ### Check Metrics Endpoint
 
