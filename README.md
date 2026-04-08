@@ -4,10 +4,11 @@
 
 <div align="center">
 
+![CI](https://img.shields.io/github/actions/workflow/status/xiaobin1187-git/deepcover/ci.yml?branch=main)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
 ![Java](https://img.shields.io/badge/Java-1.8-orange)
 ![Maven](https://img.shields.io/badge/Maven-3.5-blue)
-![Tests](https://img.shields.io/badge/Tests-41_passed-brightgreen)
+![Tests](https://img.shields.io/badge/Tests-52_passed-brightgreen)
 
 </div>
 

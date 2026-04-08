@@ -62,12 +62,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/
 
 ---
 
+## [1.1.0] - 2026-04-08
+
+### 新增
+
+- 运行时监控指标端点 `@Command("metrics")`，暴露请求计数、队列深度、熔断状态等 JSON 指标
+- GitHub Actions CI 自动构建测试，支持 Java 8/11/17 矩阵
+- 代码示例项目 `examples/demo-servlet`，包含完整 Servlet 应用示例
+- 多语言用户文档: 部署指南和配置指南各 6 种语言 (中文/EN/JA/FR/PT/RU)
+- 多语言 README: 6 种语言版本
+- 社区规范文件: CODE_OF_CONDUCT.md, SECURITY.md, Issue/PR 模板
+- Maven Wrapper (`mvnw`) 支持无预装 Maven 构建
+- Apache 2.0 License 头部添加到所有 Java 源文件
+
+### 改进
+
+- MetricsCollector: 线程安全 AtomicLong 计数器，覆盖请求/行/发送/队列/熔断全链路
+- 测试用例从 41 增加到 52 (新增 MetricsCollectorTest 11 个用例)
+- README 增加 CI 构建状态徽章
+
+---
+
 ## [Unreleased]
 
 ### 计划中
 
 - 支持更多采集策略配置
-- 添加监控指标暴露 (P3)
 - 支持更多 JVM 版本
 
 ### 已知问题

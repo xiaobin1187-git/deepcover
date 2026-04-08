@@ -1,88 +1,22 @@
 ---
 name: Feature Request
-about: 在此模板中填写新功能建议，帮助 Ares 更好地满足您的需求。
-title: '[FEAT] <功能名称>'
-
+about: Suggest an idea for DeepCover
+title: '[FEAT] '
+labels: enhancement
 ---
 
-### 🎯 功能描述
+## Is Your Feature Request Related to a Problem?
 
-**清晰简洁地描述您希望添加的功能：**
+A clear and concise description of what the problem is. For example: "I'm always frustrated when [...]"
 
-> 例如：支持配置多个数据中心的负载均衡，提高可靠性
+## Describe the Solution You'd Like
 
-### 💡 使用场景
+A clear and concise description of what you want to happen.
 
-**这个功能如何帮助您：**
+## Describe Alternatives You've Considered
 
-> 例如：我的应用部署在多个数据中心，需要将代码覆盖率数据发送到多个地址
+A clear and concise description of any alternative solutions or features you've considered.
 
-### 🎬 优先级
+## Additional Context
 
-| 优先级 | 说明 |
-|-------|------|
-| 🔴 **高优先级** | 严重影响生产使用的问题 |
-| 🟡 **中优先级** | 影响开发效率但可以变通解决 |
-| 🟢 **低优先级** | 锦上锦上添花的改进 |
-
-### 📋 功能规格（可选）
-
-**如果您对功能实现有具体的想法：**
-
-#### 配置方式
-
-> 例如：使用逗号分隔多个数据中心地址：`dataCenterAddr=http://dc1/api,http://dc2/api`
-
-#### API 设计
-
-> 例如：提供 REST API 用于查询当前配置的数据中心列表
-
-#### 其他约束
-
-> 例如：需要考虑配置验证、错误处理等
-
-### 💭 替代方案（可选）
-
-**是否有其他方式实现这个功能：**
-
-> 例如：通过外部配置中心动态获取数据中心列表
-
-### 📊 当前解决方式（如果有）
-
-**目前您是如何解决这个问题的：**
-
-> 例如：手动修改配置文件并重启应用
-
-### 🏗️ 技术考虑（可选）
-
-**如果您了解相关的技术实现细节：**
-
-> 例如：可以使用 Apache HttpClient 的连接池来管理多个连接
-
-### 📌 其他信息
-
-**任何其他有助于理解需求的上下文：**
-
-> 例如：这个功能需要与即将发布的新版本 X 兼容
-
-### ✅ 检查清单
-
-在提交 issue 前，请确认：
-
-- [ ] 已在 Issues 中搜索过类似功能请求
-- [ ] 功能与项目定位一致（代码覆盖率采集工具）
-- [ ] 已说明清楚的使用场景
-- [ ] 已阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 贡献指南
-- [ ] 功能具有可行性（技术、时间等）
-
----
-
-**💡 提示**：
-- 更多功能建议请查看 [功能路线图](#)
-- 我们欢迎 PR！如果您愿意自己实现，请先在 issue 中讨论实现方案
-
----
-
-**🙏‍♂️ 贡献方式**：
-
-查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解如何贡献代码。
+Add any other context or screenshots about the feature request here.

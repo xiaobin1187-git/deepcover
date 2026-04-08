@@ -1,6 +1,6 @@
 # DeepCover Demo - Servlet Application
 
-**[中文](README.md)** | [English](README_EN.md) | [日本語](README_ja.md) | [Francais](README_fr.md) | [Portugues](README_pt.md) | [Русский](README_ru.md)
+[中文](README.md) | **English** | [日本語](README_ja.md) | [Francais](README_fr.md) | [Portugues](README_pt.md) | [Русский](README_ru.md)
 
 A simple web application demonstrating how DeepCover collects code coverage data.
 
