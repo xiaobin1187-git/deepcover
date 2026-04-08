@@ -68,6 +68,7 @@ public class ExceptionAwareUtil {
         ai.incrementAndGet();
         if(counter.incrementAndGet() == DeepCoverConfig.exceptionThreshold){
             DeepCoverConfig.exceptionThresholdTime=System.currentTimeMillis();
+            MetricsCollector.circuitBreakerTripped.incrementAndGet();
             printErrorLog();
         }
 //        return counter.incrementAndGet() >= exceptionThreshold;

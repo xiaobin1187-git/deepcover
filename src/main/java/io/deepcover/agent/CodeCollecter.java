@@ -13,6 +13,7 @@ import io.deepcover.agent.config.ExecutorThreadPoolConfig;
 import io.deepcover.agent.config.kafka.KafkaProducerEngine;
 import io.deepcover.agent.entity.ReportServerEntity;
 import io.deepcover.agent.ext.CodeEventWatcher;
+import io.deepcover.agent.util.MetricsCollector;
 import io.deepcover.agent.util.http.HttpClient2;
 import lombok.extern.slf4j.Slf4j;
 import org.kohsuke.MetaInfServices;
@@ -21,6 +22,7 @@ import javax.annotation.Resource;
 import java.io.PrintWriter;
 import java.net.InetAddress;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -232,6 +234,44 @@ public class CodeCollecter implements Module, ModuleLifecycle {
         }
 
 
+    }
+
+    /**
+     * 暴露运行时监控指标
+     * @param writer
+     */
+    @Command("metrics")
+    public void metrics(final PrintWriter writer) {
+        Map<String, Object> metrics = new LinkedHashMap<>();
+        metrics.put("serviceName", DeepCoverConfig.serviceName);
+        metrics.put("env", DeepCoverConfig.env);
+        metrics.put("uptimeSeconds", MetricsCollector.getUptimeSeconds());
+        metrics.put("configVersion", DeepCoverConfig.configVersion);
+        metrics.put("sampleRate", DeepCoverConfig.sampleRate);
+        metrics.put("sendType", DeepCoverConfig.sendDataCenterType == 1 ? "HTTP" : "Kafka");
+
+        // Request counters
+        metrics.put("totalRequests", MetricsCollector.totalRequests.get());
+        metrics.put("collectedRequests", MetricsCollector.collectedRequests.get());
+        metrics.put("droppedRequests", MetricsCollector.droppedRequests.get());
+
+        // Line collection
+        metrics.put("totalLinesCollected", MetricsCollector.totalLinesCollected.get());
+        metrics.put("methodThresholdReached", MetricsCollector.methodThresholdReached.get());
+
+        // Send stats
+        metrics.put("sendSuccess", MetricsCollector.sendSuccess.get());
+        metrics.put("sendFailed", MetricsCollector.sendFailed.get());
+        metrics.put("queueOfferFailed", MetricsCollector.queueOfferFailed.get());
+
+        // Circuit breaker
+        metrics.put("circuitBreakerTripped", MetricsCollector.circuitBreakerTripped.get());
+        metrics.put("circuitBreakerPaused", DeepCoverConfig.exceptionThresholdTime > 0
+                && (System.currentTimeMillis() - DeepCoverConfig.exceptionThresholdTime) < DeepCoverConfig.exceptionPauseTime * 1000);
+
+        writer.println(JSONObject.toJSONString(metrics));
+        writer.flush();
+        writer.close();
     }
 
     // 输出信息到客户端
