@@ -66,7 +66,7 @@ mvn clean test -Dmaven.javadoc.skip=true
 mvn clean package -Dmaven.test.skip=true -Dmaven.javadoc.skip=true
 ```
 
-当前测试覆盖 41 个用例，新增功能建议同步添加测试用例。测试文件位于 `src/test/java/io/deepcover/agent/` 下。
+当前测试覆盖 52 个用例，新增功能建议同步添加测试用例。测试文件位于 `src/test/java/io/deepcover/agent/` 下。
 
 #### Pull Request 流程
 
