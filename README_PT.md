@@ -1,4 +1,4 @@
-<img src="docs/assets/logo.svg" alt="DeepCover Logo" width="128" height="128" align="right">
+<div align="center"><img src="docs/assets/logo.svg" alt="DeepCover" width="96" height="96"></div>
 # DeepCover - Agente de coleta de analise de precisao em cadeia completa
 
 [中文](README.md) | [English](README_EN.md) | [日本語](README_JA.md) | [Francais](README_FR.md) | **Portugues** | [Русский](README_RU.md)
