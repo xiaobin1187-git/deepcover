@@ -1,6 +1,6 @@
 # Contributing to DeepCover
 
-感谢您对 DeepCover 代码覆盖率采集工具的兴趣！我们欢迎任何形式的贡献。
+感谢您对 DeepCover 精准分析采集工具的兴趣！我们欢迎任何形式的贡献。
 
 ## 行为准则
 
