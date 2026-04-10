@@ -1,4 +1,5 @@
-# DeepCover - Agent de collecte de couverture de code en chaine complete
+<img src="docs/assets/logo.svg" alt="DeepCover Logo" width="128" height="128" align="right">
+# DeepCover - Agent de collecte de analyse de precision en chaine complete
 
 [中文](README.md) | [English](README_EN.md) | [日本語](README_JA.md) | **Francais** | [Portugues](README_PT.md) | [Русский](README_RU.md)
 
@@ -12,16 +13,16 @@
 
 </div>
 
-> Outil de collecte de couverture de code Java base sur JVM Sandbox - Surveillance de couverture au niveau des lignes, non intrusive
+> Outil de collecte de analyse de precision Java base sur JVM Sandbox - Surveillance de analyse de precision au niveau des lignes, non intrusive
 
 ## Introduction
 
-DeepCover est un **agent de collecte de couverture de code Java non intrusif** base sur Alibaba JVM Sandbox. Il collecte en temps reel les donnees d'execution des lignes de code sans modifier le code source de l'application.
+DeepCover est un **agent de collecte de analyse de precision Java non intrusif** base sur Alibaba JVM Sandbox. Il collecte en temps reel les donnees d'execution des lignes de code sans modifier le code source de l'application.
 
 ### Fonctionnalites principales
 
 - **Collecte non intrusive** -- Base sur la technologie d'amelioration de bytecode JVM Sandbox, aucune modification du code source requise
-- **Couverture au niveau des lignes** -- Enregistrements d'execution precis pour chaque ligne de code
+- **Analyse au niveau des lignes** -- Enregistrements d'execution precis pour chaque ligne de code
 - **Tracage des requetes HTTP** -- Identification et suivi automatiques des requetes HTTP Servlet
 - **Conception haute performance** -- Files asynchrones + envoi par lots pour minimiser l'impact sur l'application
 - **Configuration flexible** -- Controle fin des noms de classes, methodes, taux d'echantillonnage, avec rechargement a chaud dynamique via le centre de configuration
@@ -54,7 +55,7 @@ Le pipeline complet de la collecte de code au traitement et stockage des donnees
               │                                  │
      ┌────────┴────────┐              ┌─────────┴─────────┐
      │  Centre de       │              │  Cluster Kafka     │
-     │  donnees (HTTP)  │              │  code-coverage     │
+     │  donnees (HTTP)  │              │  precision-analysis     │
      │  /api/collect    │              │                    │
      └────────┬────────┘              └─────────┬─────────┘
               │                                  │
@@ -64,7 +65,7 @@ Le pipeline complet de la collecte de code au traitement et stockage des donnees
               │  Traitement des donnees │
               │  / Service de stockage  │
               │                         │
-              │  - Calcul de couverture  │
+              │  - Calcul d analyse de precision  │
               │  - Analyse diff.        │
               │  - Persistence des      │
               │    donnees              │
