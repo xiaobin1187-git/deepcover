@@ -1,4 +1,5 @@
-# DeepCover - 代码全链路覆盖率采集 Agent
+<img src="docs/assets/logo.svg" alt="DeepCover Logo" width="128" height="128" align="right">
+# DeepCover - 代码全链路精准分析采集 Agent
 
 **[中文](README.md)** | [English](README_EN.md) | [日本語](README_JA.md) | [Francais](README_FR.md) | [Portugues](README_PT.md) | [Русский](README_RU.md)
 
@@ -12,16 +13,16 @@
 
 </div>
 
-> 基于 JVM Sandbox 的 Java 代码覆盖率采集工具，实现无侵入的应用代码行级覆盖监控
+> 基于 JVM Sandbox 的 Java 精准分析采集工具，实现无侵入的应用代码行级精准分析监控
 
 ## 简介
 
-DeepCover 是一个基于 Alibaba JVM Sandbox 的**无侵入式 Java 代码覆盖率采集 Agent**，可以在不修改应用源码的情况下，实时采集应用运行的代码行执行情况。
+DeepCover 是一个基于 Alibaba JVM Sandbox 的**无侵入式 Java 精准分析采集 Agent**，可以在不修改应用源码的情况下，实时采集应用运行的代码行执行情况。
 
 ### 主要特性
 
 - **无侵入采集** -- 基于 JVM Sandbox 字节码增强技术，无需修改应用代码
-- **代码行级覆盖** -- 精确到每一行代码的执行记录
+- **代码行级精准分析** -- 精确到每一行代码的执行记录
 - **HTTP 请求追踪** -- 自动识别和追踪 HTTP Servlet 请求
 - **高性能设计** -- 异步队列 + 批量发送，减少对应用性能影响
 - **灵活配置** -- 支持类名、方法名、采样率等细粒度配置，支持配置中心动态热更新
@@ -54,7 +55,7 @@ DeepCover 是一个基于 Alibaba JVM Sandbox 的**无侵入式 Java 代码覆�
               │                                  │
      ┌────────┴────────┐              ┌─────────┴─────────┐
      │  数据中心 (HTTP)  │              │  Kafka Cluster     │
-     │  /api/collect    │              │  code-coverage     │
+     │  /api/collect    │              │  precision-analysis     │
      └────────┬────────┘              └─────────┬─────────┘
               │                                  │
               └────────────┬─────────────────────┘
@@ -62,10 +63,10 @@ DeepCover 是一个基于 Alibaba JVM Sandbox 的**无侵入式 Java 代码覆�
               ┌────────────┴────────────┐
               │  数据处理 / 存储服务      │
               │                         │
-              │  - 代码覆盖率计算         │
-              │  - 差异覆盖率分析         │
+              │  - 精准分析计算         │
+              │  - 差异精准分析         │
               │  - 采集数据持久化         │
-              │  - 覆盖率报告生成         │
+              │  - 精准分析报告生成         │
               └─────────────────────────┘
 ```
 
