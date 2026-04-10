@@ -1,4 +1,5 @@
-# DeepCover - Full-Chain Code Coverage Collection Agent
+<img src="docs/assets/logo.svg" alt="DeepCover Logo" width="128" height="128" align="right">
+# DeepCover - Full-Chain Precision Analysis Collection Agent
 
 [Chinese](README.md) | **English** | [日本語](README_JA.md) | [Francais](README_FR.md) | [Portugues](README_PT.md) | [Русский](README_RU.md)
 
@@ -12,16 +13,16 @@
 
 </div>
 
-> A JVM Sandbox-based Java code coverage collection tool for non-intrusive line-level coverage monitoring
+> A JVM Sandbox-based Java precision analysis collection tool for non-intrusive line-level precision analysis monitoring
 
 ## Introduction
 
-DeepCover is a **non-intrusive Java code coverage collection Agent** based on Alibaba JVM Sandbox. It collects real-time code line execution data without modifying application source code.
+DeepCover is a **non-intrusive Java precision analysis collection Agent** based on Alibaba JVM Sandbox. It collects real-time code line execution data without modifying application source code.
 
 ### Key Features
 
 - **Non-intrusive Collection** -- Based on JVM Sandbox bytecode enhancement, no source code changes required
-- **Line-Level Coverage** -- Precise execution records down to each line of code
+- **Line-Level Analysis** -- Precise execution records down to each line of code
 - **HTTP Request Tracing** -- Automatic identification and tracing of HTTP Servlet requests
 - **High-Performance Design** -- Async queues + batch sending to minimize application impact
 - **Flexible Configuration** -- Fine-grained control over class names, method names, sampling rates, with dynamic hot-reload via config center
@@ -54,7 +55,7 @@ The complete pipeline from code collection to data processing and storage:
               │                                  │
      ┌────────┴────────┐              ┌─────────┴─────────┐
      │  Data Center     │              │  Kafka Cluster     │
-     │  (HTTP)          │              │  code-coverage     │
+     │  (HTTP)          │              │  precision-analysis     │
      │  /api/collect    │              │                    │
      └────────┬────────┘              └─────────┬─────────┘
               │                                  │
@@ -64,8 +65,8 @@ The complete pipeline from code collection to data processing and storage:
               │  Data Processing /      │
               │  Storage Service        │
               │                         │
-              │  - Coverage calculation │
-              │  - Diff coverage        │
+              │  - Precision analysis calculation │
+              │  - Diff precision analysis        │
               │  - Data persistence     │
               │  - Report generation    │
               └─────────────────────────┘
