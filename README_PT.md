@@ -1,4 +1,5 @@
-# DeepCover - Agente de coleta de cobertura de codigo em cadeia completa
+<img src="docs/assets/logo.svg" alt="DeepCover Logo" width="128" height="128" align="right">
+# DeepCover - Agente de coleta de analise de precisao em cadeia completa
 
 [中文](README.md) | [English](README_EN.md) | [日本語](README_JA.md) | [Francais](README_FR.md) | **Portugues** | [Русский](README_RU.md)
 
@@ -12,16 +13,16 @@
 
 </div>
 
-> Ferramenta de coleta de cobertura de codigo Java baseada em JVM Sandbox - Monitoramento nao intrusivo de cobertura em nivel de linha
+> Ferramenta de coleta de analise de precisao Java baseada em JVM Sandbox - Monitoramento nao intrusivo de analise de precisao em nivel de linha
 
 ## Introducao
 
-DeepCover e um **agente de coleta de cobertura de codigo Java nao intrusivo** baseado no Alibaba JVM Sandbox. Ele coleta dados de execucao de linhas de codigo em tempo real sem modificar o codigo-fonte da aplicacao.
+DeepCover e um **agente de coleta de analise de precisao Java nao intrusivo** baseado no Alibaba JVM Sandbox. Ele coleta dados de execucao de linhas de codigo em tempo real sem modificar o codigo-fonte da aplicacao.
 
 ### Principais Recursos
 
 - **Coleta nao intrusiva** -- Baseado em tecnologia de melhoria de bytecode JVM Sandbox, sem modificacao do codigo-fonte
-- **Cobertura em nivel de linha** -- Registros de execucao precisos para cada linha de codigo
+- **Analise em nivel de linha** -- Registros de execucao precisos para cada linha de codigo
 - **Rastreamento de requisicoes HTTP** -- Identificacao e rastreamento automaticos de requisicoes HTTP Servlet
 - **Design de alta performance** -- Filas assincronas + envio em lote para minimizar o impacto na aplicacao
 - **Configuracao flexivel** -- Controle refinado de nomes de classes, metodos, taxas de amostragem, com recarregamento a quente via centro de configuracao
@@ -54,7 +55,7 @@ O pipeline completo da coleta de codigo ao processamento e armazenamento de dado
               │                                  │
      ┌────────┴────────┐              ┌─────────┴─────────┐
      │  Centro de       │              │  Cluster Kafka     │
-     │  Dados (HTTP)    │              │  code-coverage     │
+     │  Dados (HTTP)    │              │  precision-analysis     │
      │  /api/collect    │              │                    │
      └────────┬────────┘              └─────────┬─────────┘
               │                                  │
@@ -64,7 +65,7 @@ O pipeline completo da coleta de codigo ao processamento e armazenamento de dado
               │  Processamento de       │
               │  Dados / Armazenamento  │
               │                         │
-              │  - Calculo de cobertura │
+              │  - Calculo de analise de precisao │
               │  - Analise diferencial  │
               │  - Persistencia dados   │
               │  - Geracao relatorios   │
