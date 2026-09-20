@@ -160,7 +160,11 @@ try {
 
     for ($repeat = 1; $repeat -le $Repeats; $repeat++) {
         foreach ($loadProfile in $loadProfiles) {
-            foreach ($scenario in $scenarios) {
+            $scenarioOffset = ($repeat - 1) % $scenarios.Count
+            $orderedScenarios = for ($index = 0; $index -lt $scenarios.Count; $index++) {
+                $scenarios[($scenarioOffset + $index) % $scenarios.Count]
+            }
+            foreach ($scenario in $orderedScenarios) {
             $scenarioIndex++
             Invoke-WebRequest -UseBasicParsing -Method Post -Uri "http://127.0.0.1:$ReceiverPort/reset" | Out-Null
             $name = "$($scenario.Name)-$($loadProfile.Name)-run-$repeat"

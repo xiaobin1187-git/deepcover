@@ -110,7 +110,7 @@ public class HttpCodeModule {
                     codeEntity.setCodeInfoSize(0);
                     codeEntity.setIsSend(0);
                     codeEntity.setThresholdExceeded(false);
-                    log.debug("开始采集,接口：{}",codeEntity.toString());
+                    log.debug("开始采集,接口：{}", codeEntity);
                     advice.getProcessTop().attach(codeEntity);
                 }
             }
@@ -271,7 +271,7 @@ public class HttpCodeModule {
 //                            sendMessage(codeEntity,traceId);
                         }catch (Exception e){
                             MetricsCollector.droppedRequests.incrementAndGet();
-                            log.error("sendMessage exception,traceId={},codeInfo:{}",traceId,codeEntity.toString(),e);
+                            log.error("sendMessage exception,traceId={},codeInfo:{}", traceId, codeEntity, e);
                         }
                     }
                 }

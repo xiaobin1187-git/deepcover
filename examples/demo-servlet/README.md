@@ -98,3 +98,5 @@ curl "http://127.0.0.1:18081/stats"
 ```
 
 脚本会分别运行无 Agent、10% 采样和 100% 采样场景，并校验队列、发送计数和接收端计数。已记录结果见 [Benchmark 结果](../../benchmarks/RESULTS.md)。
+
+要把外部测试用例 ID 与本 Demo 实际执行的类、方法和行号关联起来，可运行 [Test Case Mapping Demo](../test-case-mapping/README.md)。

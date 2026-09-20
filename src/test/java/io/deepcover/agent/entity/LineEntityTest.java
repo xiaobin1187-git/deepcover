@@ -109,6 +109,31 @@ public class LineEntityTest {
     }
 
     @Test
+    public void testEqualsPreservesLineOrderSemantics() {
+        LineEntity other = new LineEntity();
+        other.setClassName("com.example.DemoService");
+        other.setMethodName("doProcess");
+        other.setParameters(new ArrayList<>());
+
+        Set<Integer> reversedLines = new LinkedHashSet<>();
+        reversedLines.add(30);
+        reversedLines.add(20);
+        reversedLines.add(10);
+        other.setLineNum(reversedLines);
+
+        assertNotEquals(lineEntity, other);
+    }
+
+    @Test
+    public void testEqualsHandlesNullOptionalFields() {
+        LineEntity left = new LineEntity();
+        LineEntity right = new LineEntity();
+
+        assertEquals(left, right);
+        assertEquals(left.hashCode(), right.hashCode());
+    }
+
+    @Test
     public void testDefaultLineNumNotNull() {
         LineEntity fresh = new LineEntity();
         assertNotNull(fresh.getLineNum());

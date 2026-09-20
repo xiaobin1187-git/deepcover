@@ -24,7 +24,7 @@ import java.util.Map;
 /**
  * 本地异步处理消费者接口
  *
- * @Author DeepCover Contributors
+ * @author DeepCover Contributors
  * @Date 2024/3/14-19:07
  * @Version 1.0
  */

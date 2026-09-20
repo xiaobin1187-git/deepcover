@@ -31,6 +31,12 @@ def percent_change(current, baseline):
     return "%+.1f%%" % ((current / baseline - 1.0) * 100.0)
 
 
+def percent_change_value(current, baseline):
+    if baseline == 0:
+        return None
+    return (current / baseline - 1.0) * 100.0
+
+
 def load_label(load_name):
     return "Max" if load_name == "max" else load_name.replace("rps-", "") + " RPS"
 
@@ -143,6 +149,44 @@ def main():
                 percent_change(current["p99"], baseline["p99"]),
                 current["cpu"] - baseline["cpu"],
                 current["rss"] - baseline["rss"],
+            ))
+
+    print()
+    print("## Paired Relative To Baseline")
+    print()
+    print("Each delta compares an Agent run with the Baseline from the same repeat, then reports the median delta.")
+    print()
+    print("| Offered load | Scenario | Throughput change | P99 change | CPU change | RSS change |")
+    print("|---:|---|---:|---:|---:|---:|")
+    for load_name in sorted({key[0] for key in summaries}, key=sort_load):
+        baseline_by_run = {
+            run["run_number"]: run for run in groups[(load_name, "baseline")]
+        }
+        for scenario in ("sample-10", "sample-100"):
+            throughput_changes = []
+            p99_changes = []
+            cpu_changes = []
+            rss_changes = []
+            for run in groups[(load_name, scenario)]:
+                baseline_run = baseline_by_run[run["run_number"]]
+                throughput_changes.append(percent_change_value(
+                    run["throughput_rps"], baseline_run["throughput_rps"]
+                ))
+                p99_changes.append(percent_change_value(
+                    run["latency_ms"]["p99"], baseline_run["latency_ms"]["p99"]
+                ))
+                cpu_changes.append(
+                    run["process"]["cpu_percent_mean"]
+                    - baseline_run["process"]["cpu_percent_mean"]
+                )
+                rss_changes.append(
+                    run["process"]["rss_mb_mean"]
+                    - baseline_run["process"]["rss_mb_mean"]
+                )
+            print("| %s | %s | %+.1f%% | %+.1f%% | %+.1f points | %+.1f MB |" % (
+                load_label(load_name), scenario_label(scenario),
+                median(throughput_changes), median(p99_changes),
+                median(cpu_changes), median(rss_changes),
             ))
 
     print()

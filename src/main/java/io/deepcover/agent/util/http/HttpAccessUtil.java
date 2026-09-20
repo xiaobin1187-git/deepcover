@@ -16,14 +16,25 @@
  */
 package io.deepcover.agent.util.http;
 
-import io.deepcover.agent.ext.CodeAdvice;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 
-import javax.servlet.http.HttpServletRequest;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.Collections;
 import java.util.Map;
 
 @Data
+@Slf4j
 public class HttpAccessUtil {
+    private static final ClassValue<RequestAccessor> REQUEST_ACCESSOR_CACHE =
+            new ClassValue<RequestAccessor>() {
+                @Override
+                protected RequestAccessor computeValue(Class<?> type) {
+                    return new RequestAccessor(type);
+                }
+            };
+
     final long beginTimestamp = System.currentTimeMillis();
     String from;
     Integer port;
@@ -34,13 +45,11 @@ public class HttpAccessUtil {
     String traceId;
     int status = 200;
 
-    HttpAccessUtil(String from, Integer port,String method, String uri, Map<String, String[]> parameterMap, String userAgent, String traceId) {
-        this.from = from;
+    HttpAccessUtil(Integer port, String method, String uri, String traceId) {
         this.port=port;
         this.method = method;
         this.uri = uri;
-        this.parameterMap = parameterMap;
-        this.userAgent = userAgent;
+        this.parameterMap = Collections.emptyMap();
         this.traceId = traceId;
     }
 
@@ -52,32 +61,22 @@ public class HttpAccessUtil {
     }
 
     public HttpAccessUtil wrapperHttpAccess(Object[] params) {
-
-        // 俘虏HttpServletRequest参数为傀儡
-        final IHttpServletRequest httpServletRequest = InterfaceProxyUtils.puppet(
-                IHttpServletRequest.class,
-                params[0]);
-
-        // 俘虏HttpServletRequest参数为傀儡
-//        final HttpServletRequest httpServletRequest2 = InterfaceProxyUtils.puppet(
-//                HttpServletRequest.class,
-//                advice.getParameterArray()[0]);
-//        Integer port =httpServletRequest.getServerPort();
-//        int port2 =httpServletRequest2.getServerPort();
-        // 初始化HttpAccess
-        String traceId = firstNonBlank(
-                parseW3cTraceId(httpServletRequest.getHeader("traceparent")),
-                httpServletRequest.getHeader("X-B3-TraceId"),
-                httpServletRequest.getHeader("X-Trace-Id"),
-                httpServletRequest.getHeader("traceId")
-        );
+        Object request = params[0];
+        RequestAccessor requestAccessor = REQUEST_ACCESSOR_CACHE.get(request.getClass());
+        String traceId = parseW3cTraceId(requestAccessor.getHeader(request, "traceparent"));
+        if (traceId == null) {
+            traceId = trimToNull(requestAccessor.getHeader(request, "X-B3-TraceId"));
+        }
+        if (traceId == null) {
+            traceId = trimToNull(requestAccessor.getHeader(request, "X-Trace-Id"));
+        }
+        if (traceId == null) {
+            traceId = trimToNull(requestAccessor.getHeader(request, "traceId"));
+        }
         return new HttpAccessUtil(
-                httpServletRequest.getRemoteAddress(),
-                httpServletRequest.getServerPort(),
-                httpServletRequest.getMethod(),
-                httpServletRequest.getRequestURI(),
-                httpServletRequest.getParameterMap(),
-                httpServletRequest.getHeader("User-Agent"),
+                requestAccessor.getServerPort(request),
+                requestAccessor.getMethod(request),
+                requestAccessor.getRequestUri(request),
                 traceId
         );
     }
@@ -86,16 +85,74 @@ public class HttpAccessUtil {
         if (traceparent == null) {
             return null;
         }
-        String[] parts = traceparent.trim().split("-");
-        return parts.length == 4 && parts[1].length() == 32 ? parts[1] : null;
+        String value = traceparent.trim();
+        int firstSeparator = value.indexOf('-');
+        int secondSeparator = value.indexOf('-', firstSeparator + 1);
+        int thirdSeparator = value.indexOf('-', secondSeparator + 1);
+        if (firstSeparator <= 0
+                || secondSeparator - firstSeparator != 33
+                || thirdSeparator <= secondSeparator + 1
+                || thirdSeparator >= value.length() - 1
+                || value.indexOf('-', thirdSeparator + 1) != -1) {
+            return null;
+        }
+        return value.substring(firstSeparator + 1, secondSeparator);
     }
 
-    private String firstNonBlank(String... values) {
-        for (String value : values) {
-            if (value != null && !value.trim().isEmpty()) {
-                return value.trim();
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static class RequestAccessor {
+        private final Method getServerPort;
+        private final Method getMethod;
+        private final Method getRequestUri;
+        private final Method getHeader;
+
+        RequestAccessor(Class<?> requestType) {
+            getServerPort = findMethod(requestType, "getServerPort");
+            getMethod = findMethod(requestType, "getMethod");
+            getRequestUri = findMethod(requestType, "getRequestURI");
+            getHeader = findMethod(requestType, "getHeader", String.class);
+        }
+
+        int getServerPort(Object request) {
+            return ((Number) invoke(getServerPort, request)).intValue();
+        }
+
+        String getMethod(Object request) {
+            return (String) invoke(getMethod, request);
+        }
+
+        String getRequestUri(Object request) {
+            return (String) invoke(getRequestUri, request);
+        }
+
+        String getHeader(Object request, String name) {
+            return (String) invoke(getHeader, request, name);
+        }
+
+        private static Method findMethod(Class<?> requestType, String name, Class<?>... parameterTypes) {
+            try {
+                return requestType.getMethod(name, parameterTypes);
+            } catch (NoSuchMethodException e) {
+                log.error("HTTP request method not found,class={},method={}", requestType.getName(), name, e);
+                throw new IllegalArgumentException("Unsupported HTTP request type: " + requestType.getName(), e);
             }
         }
-        return null;
+
+        private static Object invoke(Method method, Object target, Object... arguments) {
+            try {
+                return method.invoke(target, arguments);
+            } catch (IllegalAccessException | InvocationTargetException e) {
+                log.error("HTTP request method invocation failed,class={},method={}",
+                        target.getClass().getName(), method.getName(), e);
+                throw new IllegalStateException("Cannot read HTTP request metadata", e);
+            }
+        }
     }
 }

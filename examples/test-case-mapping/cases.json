@@ -1,0 +1,14 @@
+[
+  {
+    "caseId": "TC-USER-LIST",
+    "path": "/demo-servlet/user?action=list"
+  },
+  {
+    "caseId": "TC-USER-GET",
+    "path": "/demo-servlet/user?action=get&id=1"
+  },
+  {
+    "caseId": "TC-USER-CREATE",
+    "path": "/demo-servlet/user?action=create&name=Alice&email=alice@example.com"
+  }
+]
