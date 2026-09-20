@@ -31,15 +31,17 @@ public class HttpAccessUtil {
     String uri;
     Map<String, String[]> parameterMap;
     String userAgent;
+    String traceId;
     int status = 200;
 
-    HttpAccessUtil(String from, Integer port,String method, String uri, Map<String, String[]> parameterMap, String userAgent) {
+    HttpAccessUtil(String from, Integer port,String method, String uri, Map<String, String[]> parameterMap, String userAgent, String traceId) {
         this.from = from;
         this.port=port;
         this.method = method;
         this.uri = uri;
         this.parameterMap = parameterMap;
         this.userAgent = userAgent;
+        this.traceId = traceId;
     }
 
     public HttpAccessUtil() {
@@ -63,13 +65,37 @@ public class HttpAccessUtil {
 //        Integer port =httpServletRequest.getServerPort();
 //        int port2 =httpServletRequest2.getServerPort();
         // 初始化HttpAccess
+        String traceId = firstNonBlank(
+                parseW3cTraceId(httpServletRequest.getHeader("traceparent")),
+                httpServletRequest.getHeader("X-B3-TraceId"),
+                httpServletRequest.getHeader("X-Trace-Id"),
+                httpServletRequest.getHeader("traceId")
+        );
         return new HttpAccessUtil(
                 httpServletRequest.getRemoteAddress(),
                 httpServletRequest.getServerPort(),
                 httpServletRequest.getMethod(),
                 httpServletRequest.getRequestURI(),
                 httpServletRequest.getParameterMap(),
-                httpServletRequest.getHeader("User-Agent")
+                httpServletRequest.getHeader("User-Agent"),
+                traceId
         );
+    }
+
+    private String parseW3cTraceId(String traceparent) {
+        if (traceparent == null) {
+            return null;
+        }
+        String[] parts = traceparent.trim().split("-");
+        return parts.length == 4 && parts[1].length() == 32 ? parts[1] : null;
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.trim().isEmpty()) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 }

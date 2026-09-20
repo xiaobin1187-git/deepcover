@@ -39,8 +39,6 @@ import io.deepcover.agent.util.http.HttpClient2;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.LocalVariableTableParameterNameDiscoverer;
 
-import java.com.alibaba.jvm.sandbox.spy.Spy;
-import java.com.alibaba.jvm.sandbox.spy.SpyTraceEnum;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -95,7 +93,6 @@ public class HttpCodeModule {
                 String clzName=advice.getBehavior().getDeclaringClass().getName();
                 if (clzName.equals("javax.servlet.http.HttpServlet")) {
                     String traceId = TraceContext.traceId();
-                    MetricsCollector.totalRequests.incrementAndGet();
                     //如果递进调用过程中的顶层通知，就在attachment中新增一个map，用于存放后续代码行信息
                     CodeEntity codeEntity =new CodeEntity();
                     codeEntity.setType("HTTP");
@@ -112,6 +109,7 @@ public class HttpCodeModule {
                     codeEntity.setCodeInfo(new ArrayList<>());
                     codeEntity.setCodeInfoSize(0);
                     codeEntity.setIsSend(0);
+                    codeEntity.setThresholdExceeded(false);
                     log.debug("开始采集,接口：{}",codeEntity.toString());
                     advice.getProcessTop().attach(codeEntity);
                 }
@@ -129,6 +127,9 @@ public class HttpCodeModule {
                 if(codeEntity.getIsSend() == 1){
                     return;
                 }
+                if(codeEntity.isThresholdExceeded()){
+                    return;
+                }
                 //线程调用链路中的类和方法信息
                 List<LineEntity> codeInfo = codeEntity.getCodeInfo();
                 if(codeInfo == null){
@@ -140,19 +141,31 @@ public class HttpCodeModule {
                 if(traceSize>0){
                     LineEntity lastOne = codeInfo.get(traceSize-1);
                     if(lastOne.getInvokeId().equals(advice.getInvokeId())){
-                        lastOne.setCallLineCount(lastOne.getCallLineCount()+1);
-                        if(lastOne.getCallLineCount()>=(long)DeepCoverConfig.limitCodeMethodLineSize){
+                        if(lastOne.isLimitReached()){
+                            return;
+                        }
+                        long nextLineCount = lastOne.getCallLineCount() + 1;
+                        lastOne.setCallLineCount(nextLineCount);
+                        if(nextLineCount > DeepCoverConfig.limitCodeMethodLineSize){
+                            lastOne.setLimitReached(true);
+                            MetricsCollector.methodThresholdReached.incrementAndGet();
                             log.warn("className={},methodName={},代码行执行次数超过:{},traceId:{},url={}",lastOne.getClassName(),lastOne.getMethodName(),DeepCoverConfig.limitCodeMethodLineSize,codeEntity.getTraceId(),codeEntity.getUrl());
-                            Spy.traceIdThreadLocal.set(SpyTraceEnum.REFUSE);
                         }else{
                             Set<Integer> lineSet = lastOne.getLineNum();
-                            lineSet.add(lineNum);
+                            if(lineSet.add(lineNum)){
+                                MetricsCollector.totalLinesCollected.incrementAndGet();
+                            }
                         }
                         return;
-                    }else{
-                        codeEntity.setCodeInfoSize(codeEntity.getCodeInfoSize()+1);
                     }
 
+                }
+
+                if(codeInfo.size() >= DeepCoverConfig.limitCodeMethodSize){
+                    codeEntity.setThresholdExceeded(true);
+                    MetricsCollector.methodThresholdReached.incrementAndGet();
+                    log.warn("单请求采集的代码节点数超过上限:{},traceId:{},url={}",DeepCoverConfig.limitCodeMethodSize,codeEntity.getTraceId(),codeEntity.getUrl());
+                    return;
                 }
 
                 //方法名称
@@ -175,8 +188,10 @@ public class HttpCodeModule {
                 lineEntity.setClassName(className);
                 lineEntity.setMethodName(methodName);
                 lineEntity.setCallLineCount(1L);
+                lineEntity.setLimitReached(false);
                 Set<Integer> lineSet = new LinkedHashSet<>(8);
                 lineSet.add(lineNum);
+                MetricsCollector.totalLinesCollected.incrementAndGet();
                 lineEntity.setLineNum(lineSet);
 
                 Class<?>[] paramsClazz = behavior.getParameterTypes();
@@ -189,6 +204,7 @@ public class HttpCodeModule {
 
                 //将单条消息添加到codeInfo
                 codeInfo.add(lineEntity);
+                codeEntity.setCodeInfoSize(codeInfo.size());
 
             }
 
@@ -224,26 +240,37 @@ public class HttpCodeModule {
 
                 String clzName=advice.getBehavior().getDeclaringClass().getName();
                 if (clzName.equals("javax.servlet.http.HttpServlet")){
-                    Spy.traceIdThreadLocal.set(SpyTraceEnum.REFUSE);
+                    if(null==codeEntity){
+                        MetricsCollector.emptyRequests.incrementAndGet();
+                        MetricsCollector.droppedRequests.incrementAndGet();
+                        log.info("采集上下文为空,不发送,traceId={}",traceId);
+                        return;
+                    }
 
-                    if(null==codeEntity || codeEntity.getCodeInfo().size()==0 ){
+                    if(codeEntity.getCodeInfo()==null || codeEntity.getCodeInfo().isEmpty()){
+                        MetricsCollector.emptyRequests.incrementAndGet();
+                        MetricsCollector.droppedRequests.incrementAndGet();
                         log.info("采集的信息为空,不发送,traceId={},url={}",codeEntity.getTraceId(),codeEntity.getUrl());
                         return;
                     }
 
                     if(codeEntity.getIsSend()!=1){
                         codeEntity.setIsSend(1);
-                        if(codeEntity.getCodeInfoSize() >= DeepCoverConfig.limitCodeMethodSize){
+                        if(codeEntity.isThresholdExceeded()){
+                            MetricsCollector.thresholdDroppedRequests.incrementAndGet();
+                            MetricsCollector.droppedRequests.incrementAndGet();
                             log.info("单请求采集的代码节点数,超过上限:{},不发送,url:{},traceId:{}",DeepCoverConfig.limitCodeMethodSize,codeEntity.getUrl(),traceId);
-                            codeEntity.setCodeInfoSize(DeepCoverConfig.limitCodeMethodSize+1);
                             return;
                         }
                         log.debug("采集结束，发送消息,traceId={}",traceId);
                         //调用结束后，将收集到的代码行信息上传到服务器中
                         try{
-                            LocalAsyncConfig.sendMessage(codeEntity);
+                            if(LocalAsyncConfig.sendMessage(codeEntity)){
+                                MetricsCollector.collectedRequests.incrementAndGet();
+                            }
 //                            sendMessage(codeEntity,traceId);
                         }catch (Exception e){
+                            MetricsCollector.droppedRequests.incrementAndGet();
                             log.error("sendMessage exception,traceId={},codeInfo:{}",traceId,codeEntity.toString(),e);
                         }
                     }

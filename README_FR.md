@@ -1,7 +1,10 @@
 <p align="center"><img src="docs/assets/logo.svg" alt="DeepCover" width="96" height="96"></p>
-# DeepCover - Agent de collecte de analyse de precision en chaine complete
+
+# DeepCover - Agent JVM de collecte des relations requete-code a l'execution
 
 [中文](README.md) | [English](README_EN.md) | [日本語](README_JA.md) | **Francais** | [Portugues](README_PT.md) | [Русский](README_RU.md)
+
+> Note de traduction : les limites fonctionnelles et les benchmarks peuvent etre en retard sur le [README chinois](README.md), qui fait foi pour l'implementation actuelle.
 
 <div align="center">
 
@@ -9,25 +12,24 @@
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
 ![Java](https://img.shields.io/badge/Java-1.8-orange)
 ![Maven](https://img.shields.io/badge/Maven-3.5-blue)
-![Tests](https://img.shields.io/badge/Tests-52_passed-brightgreen)
+![Tests](https://img.shields.io/badge/Tests-66_passed-brightgreen)
 
 </div>
 
-> Outil de collecte de analyse de precision Java base sur JVM Sandbox - Surveillance de analyse de precision au niveau des lignes, non intrusive
+> Outil de collecte d'analyse de precision Java base sur JVM Sandbox - Surveillance de analyse au niveau des lignes, non intrusive
 
 ## Introduction
 
-DeepCover est un **agent de collecte de analyse de precision Java non intrusif** base sur Alibaba JVM Sandbox. Il collecte en temps reel les donnees d'execution des lignes de code sans modifier le code source de l'application.
+DeepCover est un **agent de collecte d'analyse de precision Java non intrusif** base sur Alibaba JVM Sandbox. Il collecte en temps reel les donnees d'execution des lignes de code sans modifier le code source de l'application.
 
 ### Fonctionnalites principales
 
 - **Collecte non intrusive** -- Base sur la technologie d'amelioration de bytecode JVM Sandbox, aucune modification du code source requise
-- **Analyse au niveau des lignes** -- Enregistrements d'execution precis pour chaque ligne de code
+- **Analyse de precision au niveau des lignes** -- Enregistrements d'execution precis pour chaque ligne de code
 - **Tracage des requetes HTTP** -- Identification et suivi automatiques des requetes HTTP Servlet
-- **Conception haute performance** -- Files asynchrones + envoi par lots pour minimiser l'impact sur l'application
+- **Files asynchrones bornees** -- Le thread de requete depose les donnees, des consommateurs se chargent de l'export
 - **Configuration flexible** -- Controle fin des noms de classes, methodes, taux d'echantillonnage, avec rechargement a chaud dynamique via le centre de configuration
 - **Multiples methodes d'export** -- Supporte l'export via HTTP et Kafka
-- **Integration OpenTelemetry** -- Compatible avec la norme OpenTelemetry pour le tracage distribue
 
 ### Architecture systeme
 
@@ -55,7 +57,7 @@ Le pipeline complet de la collecte de code au traitement et stockage des donnees
               │                                  │
      ┌────────┴────────┐              ┌─────────┴─────────┐
      │  Centre de       │              │  Cluster Kafka     │
-     │  donnees (HTTP)  │              │  precision-analysis     │
+     │  donnees (HTTP)  │              │  code-coverage     │
      │  /api/collect    │              │                    │
      └────────┬────────┘              └─────────┬─────────┘
               │                                  │
@@ -65,7 +67,7 @@ Le pipeline complet de la collecte de code au traitement et stockage des donnees
               │  Traitement des donnees │
               │  / Service de stockage  │
               │                         │
-              │  - Calcul d analyse de precision  │
+              │  - Calcul de analyse  │
               │  - Analyse diff.        │
               │  - Persistence des      │
               │    donnees              │
@@ -132,7 +134,7 @@ Le flux de collecte au sein d'une seule JVM :
 
 ### Mecanisme de rechargement a chaud de la configuration
 
-La configuration runtime peut etre mise a jour dynamiquement sans redemarrage :
+Seuls certains parametres runtime peuvent etre mis a jour sans redemarrage. Les parametres structurels exigent un redemarrage.
 
 ```
 ┌────────────────┐   Sondage periodique (reportPeriod) ┌──────────────────┐
@@ -202,7 +204,7 @@ tail -f ~/sandbox/sandbox.log | grep "code-module"
 mvn clean test -Dmaven.javadoc.skip=true
 ```
 
-41 tests unitaires couvrant les classes utilitaires et entites principales.
+66 tests unitaires couvrent actuellement le projet racine.
 
 ## Configuration
 
@@ -272,7 +274,7 @@ curl -X POST "http://sandbox-server:port/sandbox/default/module/http/deepcover/s
 DeepCover minimise l'impact sur les performances de l'application via :
 
 - **Files asynchrones** : Pool de threads independant (core=4, max=8, queue=256) avec CallerRunsPolicy
-- **Traitement par lots** : Agregation locale pour envoi par lots, reduction des couts reseau
+- **Isolation par file** : Les files locales decouplent l'export du thread de requete; HTTP envoie actuellement chaque payload separement
 - **Echantillonnage** : Echantillonnage deterministe base sur le traceId
 - **Limitation intelligente** : Arret automatique de la collecte des lignes quand le seuil est atteint
 - **Disjoncteur** : Pause automatique quand les exceptions depassent le seuil
@@ -303,7 +305,7 @@ deepcover/
 │   │       ├── TraceUtil.java       # Calcul d'echantillonnage
 │   │       ├── ExceptionAwareUtil.java  # Disjoncteur
 │   │       └── http/HttpClient2.java # Client HTTP
-│   └── test/java/                   # Tests unitaires (41 cas)
+│   └── test/java/                   # Tests unitaires (66 cas)
 ├── src/main/resources/
 │   ├── deepcover.properties.example  # Modele de config
 │   └── logback.xml
@@ -325,7 +327,6 @@ deepcover/
 | Dependances | Version | Usage |
 |-------------|---------|-------|
 | Alibaba JVM Sandbox | 1.4.0 | Framework d'amelioration bytecode |
-| OpenTelemetry API | 1.30.0 | Standard de tracage distribue |
 | Apache HttpClient | 4.5.6 | Envoi de donnees HTTP |
 | Hutool | 5.8.9 | Utilitaires HTTP (rapport au centre de config) |
 | FastJSON | 2.0.25 | Serialisation JSON |

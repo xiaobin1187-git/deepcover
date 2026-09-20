@@ -25,14 +25,7 @@ public class TraceContextTest {
     @Test
     public void testTraceIdFormat() {
         String traceId = TraceContext.traceId();
-        // 格式: {timestamp}T0.{random8chars}
-        assertTrue("traceId should contain 'T0.'", traceId.contains("T0."));
-        String[] parts = traceId.split("T0\\.");
-        assertEquals("traceId should have 2 parts split by 'T0.'", 2, parts.length);
-        // timestamp part should be numeric
-        assertTrue("timestamp part should be numeric", parts[0].matches("\\d+"));
-        // random part should be 8 hex chars
-        assertEquals("random part should be 8 chars", 8, parts[1].length());
+        assertTrue("traceId should be 32 lowercase hex chars", traceId.matches("[0-9a-f]{32}"));
     }
 
     @Test
@@ -48,6 +41,20 @@ public class TraceContextTest {
         String customId = "1234567890T0.abc12345";
         TraceContext.setTraceId(customId);
         assertEquals(customId, TraceContext.traceId());
+    }
+
+    @Test
+    public void testStartTraceUsesPropagatedTraceId() {
+        String propagated = "4bf92f3577b34da6a3ce929d0e0e4736";
+        assertEquals(propagated, TraceContext.startTrace(propagated));
+        assertEquals(propagated, TraceContext.traceId());
+    }
+
+    @Test
+    public void testStartTraceCreatesNewRequestTrace() {
+        String first = TraceContext.startTrace(null);
+        String second = TraceContext.startTrace(null);
+        assertNotEquals(first, second);
     }
 
     @Test

@@ -16,6 +16,8 @@
  */
 package io.deepcover.agent.util;
 
+import org.apache.commons.lang3.StringUtils;
+
 import java.util.UUID;
 
 /**
@@ -28,21 +30,29 @@ public class TraceContext {
      * 获取当前线程的 Trace ID
      * 使用 ThreadLocal 保持与原有行为一致
      */
-    private static final ThreadLocal<String> TRACE_ID_HOLDER = new ThreadLocal<String>() {
-        @Override
-        protected String initialValue() {
-            return generateTraceId();
-        }
-    };
+    private static final ThreadLocal<String> TRACE_ID_HOLDER = new ThreadLocal<>();
 
     /**
      * 生成新的 Trace ID
-     * 格式: {timestamp}-{random}
+     * 格式: 32位小写十六进制字符串，兼容 W3C trace-id 的长度和字符集
      */
     private static String generateTraceId() {
-        long timestamp = System.currentTimeMillis();
-        String random = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
-        return timestamp + "T0." + random;
+        return UUID.randomUUID().toString().replace("-", "");
+    }
+
+    /**
+     * 开始一次新的请求链路。
+     *
+     * @param propagatedTraceId 上游传入的 traceId，可为空
+     * @return 本次请求使用的 traceId
+     */
+    public static String startTrace(String propagatedTraceId) {
+        String traceId = StringUtils.trimToNull(propagatedTraceId);
+        if (traceId == null) {
+            traceId = generateTraceId();
+        }
+        TRACE_ID_HOLDER.set(traceId);
+        return traceId;
     }
 
     /**
@@ -52,8 +62,7 @@ public class TraceContext {
     public static String traceId() {
         String traceId = TRACE_ID_HOLDER.get();
         if (traceId == null) {
-            traceId = generateTraceId();
-            TRACE_ID_HOLDER.set(traceId);
+            traceId = startTrace(null);
         }
         return traceId;
     }

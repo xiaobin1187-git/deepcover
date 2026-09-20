@@ -51,6 +51,8 @@ public class LineEntity {
 
   private Long callLineCount;
 
+  private boolean limitReached;
+
   @Override
   public boolean equals(Object obj) {
     if(obj instanceof LineEntity) {

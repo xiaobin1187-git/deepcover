@@ -30,6 +30,10 @@ public class MetricsCollector {
     public static final AtomicLong totalRequests = new AtomicLong(0);
     public static final AtomicLong collectedRequests = new AtomicLong(0);
     public static final AtomicLong droppedRequests = new AtomicLong(0);
+    public static final AtomicLong sampledOutRequests = new AtomicLong(0);
+    public static final AtomicLong ignoredRequests = new AtomicLong(0);
+    public static final AtomicLong emptyRequests = new AtomicLong(0);
+    public static final AtomicLong thresholdDroppedRequests = new AtomicLong(0);
 
     // Line collection metrics
     public static final AtomicLong totalLinesCollected = new AtomicLong(0);
@@ -42,6 +46,7 @@ public class MetricsCollector {
 
     // Circuit breaker metrics
     public static final AtomicLong circuitBreakerTripped = new AtomicLong(0);
+    public static final AtomicLong circuitBreakerDroppedRequests = new AtomicLong(0);
 
     public static long getUptimeSeconds() {
         return (System.currentTimeMillis() - START_TIME) / 1000;

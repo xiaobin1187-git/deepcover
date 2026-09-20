@@ -35,7 +35,7 @@ import java.util.Map;
  */
 @Slf4j
 public class LocalAsyncConfig {
-    private static LocalAsyncEngine localAsyncEngine =null;
+    private static volatile LocalAsyncEngine localAsyncEngine =null;
     static class MyHandler implements LocalAsyncConsumer {
         @Override
         public void init(Map<String, Object> properties) {
@@ -46,15 +46,19 @@ public class LocalAsyncConfig {
         public void consume(List<CodeEntity> msg) {
             try{
                 if(DeepCoverConfig.sendDataCenterType==1){
-                    HttpClient2.batchDoPost(DeepCoverConfig.dataCenterAddr,msg);
+                    int successCount = HttpClient2.batchDoPost(DeepCoverConfig.dataCenterAddr,msg);
+                    MetricsCollector.sendSuccess.addAndGet(successCount);
+                    MetricsCollector.sendFailed.addAndGet(msg.size() - successCount);
                 }else if(DeepCoverConfig.sendDataCenterType==2){
                     KafkaProducerEngine.batchSendMessage(msg);
+                }else{
+                    MetricsCollector.sendFailed.addAndGet(msg.size());
+                    log.error("unsupported sendDataCenterType={}", DeepCoverConfig.sendDataCenterType);
                 }
-                MetricsCollector.sendSuccess.addAndGet(msg.size());
                 log.debug(Thread.currentThread().getId() + "." + Thread.currentThread().getName() + ":消费数据条数=" + msg.size());
 
             }catch(Exception e){
-                log.error("队列消费异常：采集发送数据异常");
+                log.error("队列消费异常：采集发送数据异常", e);
                 MetricsCollector.sendFailed.addAndGet(msg.size());
                 ExceptionAwareUtil.exceptionOverflow(e);
             }
@@ -85,17 +89,49 @@ public class LocalAsyncConfig {
         }
     }
 
-    public static void  init(){
+    public static synchronized void init(){
         if(localAsyncEngine == null){
             localAsyncEngine = new LocalAsyncEngine(DeepCoverConfig.queueNum, DeepCoverConfig.queueSize, DeepCoverConfig.queueMsgSize, DeepCoverConfig.queueRecycleTime, MyHandler.class, null);
             localAsyncEngine.start();
         }
     }
-    public static void sendMessage(CodeEntity codeEntity){
-        boolean isSend = localAsyncEngine.offerMsg(codeEntity);
-//        if(!isSend){
-//            log.warn("发送队列已满，不发送，traceId={},url={}",codeEntity.getTraceId(),codeEntity.getUrl());
-//        }
+    public static boolean sendMessage(CodeEntity codeEntity){
+        LocalAsyncEngine engine = localAsyncEngine;
+        if (engine == null) {
+            MetricsCollector.queueOfferFailed.incrementAndGet();
+            MetricsCollector.droppedRequests.incrementAndGet();
+            log.error("local async engine is not initialized");
+            return false;
+        }
+        return engine.offerMsg(codeEntity);
+    }
+
+    public static synchronized void shutdown(){
+        LocalAsyncEngine engine = localAsyncEngine;
+        localAsyncEngine = null;
+        if (engine != null) {
+            engine.shutdown();
+        }
+    }
+
+    public static int getQueueDepth() {
+        LocalAsyncEngine engine = localAsyncEngine;
+        return engine == null ? 0 : engine.getQueueDepth();
+    }
+
+    public static int getQueueCapacity() {
+        LocalAsyncEngine engine = localAsyncEngine;
+        return engine == null ? 0 : engine.getQueueCapacity();
+    }
+
+    public static int getQueueCount() {
+        LocalAsyncEngine engine = localAsyncEngine;
+        return engine == null ? 0 : engine.getQueueCount();
+    }
+
+    public static boolean isRunning() {
+        LocalAsyncEngine engine = localAsyncEngine;
+        return engine != null && engine.isRunning();
     }
     public static void main(String[] args) throws InterruptedException {
         LocalAsyncEngine localAsyncEngine = new LocalAsyncEngine(10, 100, 100, 2, MyHandler.class, null);
