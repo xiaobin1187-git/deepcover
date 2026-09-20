@@ -18,16 +18,11 @@ package io.deepcover.agent.entity;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import io.deepcover.agent.config.DeepCoverConfig;
-import io.deepcover.agent.config.queue.LocalAsyncMsg;
 import lombok.Data;
-import lombok.ToString;
 
 import java.io.Serializable;
-import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Set;
 
 @Data
@@ -61,7 +56,7 @@ public class CodeEntity implements Serializable{
     public String toString() {
         JSONArray jsonArray = new JSONArray(codeInfo.size());
         for(LineEntity line:codeInfo){
-            jsonArray.add(JSONObject.parse(line.toString()));
+            jsonArray.add(line.toJsonObject());
         }
         return new JSONObject()
             .fluentPut("type",type)

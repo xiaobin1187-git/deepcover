@@ -47,7 +47,7 @@ import java.util.Set;
 
 /**
  * @description:采集代码信息
- * @author: wuchen
+ * @author: DeepCover Contributors
  * @time: 2023/3/2 17:51
  */
 @Slf4j
@@ -110,7 +110,7 @@ public class HttpCodeModule {
                     codeEntity.setCodeInfoSize(0);
                     codeEntity.setIsSend(0);
                     codeEntity.setThresholdExceeded(false);
-                    log.debug("开始采集,接口：{}",codeEntity.toString());
+                    log.debug("开始采集,接口：{}", codeEntity);
                     advice.getProcessTop().attach(codeEntity);
                 }
             }
@@ -271,7 +271,7 @@ public class HttpCodeModule {
 //                            sendMessage(codeEntity,traceId);
                         }catch (Exception e){
                             MetricsCollector.droppedRequests.incrementAndGet();
-                            log.error("sendMessage exception,traceId={},codeInfo:{}",traceId,codeEntity.toString(),e);
+                            log.error("sendMessage exception,traceId={},codeInfo:{}", traceId, codeEntity, e);
                         }
                     }
                 }
@@ -341,7 +341,7 @@ public class HttpCodeModule {
         sb.append(").*");*/
         sb.append(serviceName);
         sb.append(".*");
-        log.info("ares采集的class：{}",sb.toString());
+        log.info("DeepCover采集的class：{}",sb.toString());
         return sb.toString();
     }
 

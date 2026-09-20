@@ -26,7 +26,7 @@ import java.util.List;
 /**
  * 本地异步处理消费线程
  *
- * @Author shudian
+ * @author DeepCover Contributors
  * @Date 2024/3/15-9:32
  * @Version 1.0
  */

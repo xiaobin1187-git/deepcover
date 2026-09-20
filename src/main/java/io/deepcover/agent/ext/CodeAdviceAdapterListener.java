@@ -32,9 +32,11 @@ import io.deepcover.agent.util.TraceContext;
 import io.deepcover.agent.util.TraceUtil;
 import io.deepcover.agent.util.http.HttpAccessUtil;
 import lombok.extern.slf4j.Slf4j;
+
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
-import java.util.Stack;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
@@ -42,7 +44,7 @@ import java.util.regex.Pattern;
 /**
  * 通知监听器
  *
- * @author yingzhu
+ * @author DeepCover Contributors
  * @since {@code sandbox-api:1.0.10}
  */
 @Slf4j
@@ -317,7 +319,7 @@ public class CodeAdviceAdapterListener implements EventListener {
      */
     private static class OpStack {
 
-        private final Stack<WrapAdvice> adviceStack = new Stack<>();
+        private final Deque<WrapAdvice> adviceStack = new ArrayDeque<>();
 
         boolean isEmpty() {
             return adviceStack.isEmpty();

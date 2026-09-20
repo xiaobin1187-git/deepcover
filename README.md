@@ -12,7 +12,7 @@
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
 ![Java](https://img.shields.io/badge/Java-8-orange)
 ![Maven](https://img.shields.io/badge/Maven-3.5+-blue)
-![Tests](https://img.shields.io/badge/Tests-66_passed-brightgreen)
+![Tests](https://img.shields.io/badge/Tests-69_passed-brightgreen)
 
 </div>
 
@@ -172,6 +172,26 @@ curl "http://127.0.0.1:4769/sandbox/default/module/http/deepcover/metrics"
 curl "http://127.0.0.1:18081/stats"
 ```
 
+## Test Case 到代码关系 Demo
+
+仓库包含一个最小闭环示例，把外部测试用例 ID 与 DeepCover 的运行时关系连接起来：
+
+```text
+Test Case ID -> 确定性 traceId -> HTTP Request -> DeepCover Payload -> Case-to-Code Mapping
+```
+
+DeepCover 本身不管理测试用例。示例 runner 保存 `caseId -> traceId`，DeepCover 负责生成 `traceId -> 请求/代码` 证据，两者在接收端结果中关联。
+
+```bash
+# 接收端仅在显式开启时保留内存中的采集记录
+python benchmarks/mock_receiver.py --port 18081 --capture-records
+
+# Demo 与 Agent 启动后执行三个示例用例
+python examples/test-case-mapping/run_mapping.py
+```
+
+输出包含测试用例、请求路径、traceId，以及实际观察到的类、方法和行号。完整步骤和边界见 [Test Case Mapping Demo](examples/test-case-mapping/README.md)。
+
 ## 配置
 
 独立运行最直接的方式是使用 JVM 系统属性。`deepcover.properties` 主要用于按环境配置数据中心、配置中心和 Kafka 地址；配置中心可以通过 `deepcover.configCenterEnabled=false` 关闭。
@@ -238,25 +258,29 @@ curl -X POST "http://127.0.0.1:4769/sandbox/default/module/http/deepcover/unload
 
 ## Benchmark
 
-仓库提供固定目标 QPS 的基准工具，并在写入结果前校验队列排空、发送结果和接收端计数。
+仓库提供固定目标 RPS 的基准工具，并在写入结果前校验队列排空、发送结果和接收端计数。
 
-2026-09-20 的本机实验使用 50、100、200 RPS，每组运行 3 次。以下是中位数；Baseline 未加载 Sandbox，采样场景包含 Sandbox 与 DeepCover 的整体成本。
+2026-09-20 的优化后实验聚焦 100 和 200 RPS，每组运行 3 次，并轮换场景顺序。以下是中位数；Baseline 未加载 Sandbox，采样场景包含 Sandbox 与 DeepCover 的整体成本。
 
 | 目标负载 | 场景 | 实际 RPS | P99 ms | 平均 CPU % | 平均 RSS MB |
 |---:|---|---:|---:|---:|---:|
-| 50 | Baseline | 49.9 | 31.4 | 38.7 | 94.4 |
-| 50 | 10% 采样 | 50.0 | 35.6 | 168.2 | 231.5 |
-| 50 | 100% 采样 | 50.0 | 73.8 | 299.6 | 234.6 |
-| 100 | Baseline | 99.9 | 36.2 | 54.6 | 110.8 |
-| 100 | 10% 采样 | 99.7 | 112.1 | 348.4 | 253.9 |
-| 100 | 100% 采样 | 99.8 | 83.0 | 270.5 | 236.3 |
-| 200 | Baseline | 199.2 | 190.5 | 149.2 | 132.7 |
-| 200 | 10% 采样 | 181.8 | 1117.4 | 346.4 | 258.8 |
-| 200 | 100% 采样 | 161.3 | 1152.5 | 361.2 | 275.8 |
+| 100 | Baseline | 99.8 | 35.0 | 52.0 | 108.6 |
+| 100 | 10% 采样 | 99.8 | 122.4 | 250.4 | 222.4 |
+| 100 | 100% 采样 | 99.8 | 36.6 | 283.0 | 233.4 |
+| 200 | Baseline | 199.4 | 38.4 | 96.9 | 132.9 |
+| 200 | 10% 采样 | 199.4 | 849.0 | 316.2 | 215.6 |
+| 200 | 100% 采样 | 188.0 | 1048.5 | 330.4 | 221.1 |
 
-这组数据表明：50 和 100 RPS 下可以维持目标吞吐，但资源占用和尾延迟增加；200 RPS 已接近本机 demo 的饱和区，10% 与 100% 采样的中位吞吐分别下降约 8.7% 和 19.0%，P99 中位数均超过 1.1 秒。三轮尾延迟波动较大，因此这些数据适合判断成本量级，不适合作为生产容量结论。
+在 200 RPS 下，按同一 repeat 的 Baseline 配对计算，10% 与 100% 采样的吞吐变化中位数分别为 `-0.1%` 和 `-4.3%`。但 CPU 仍增加 `184.3` 和 `233.4` 个百分点，RSS 增加 `82.7 MB` 和 `92.5 MB`，P99 仍处于 `849.0-1048.5 ms`，因此尾延迟与资源成本仍是明确瓶颈。
 
-完整方法、范围、采样命中率和限制见 [Benchmark 结果](benchmarks/RESULTS.md)。
+### Performance Optimization Journey
+
+1. **Profile**：Oracle JDK 8 JFR 显示，请求入口动态代理与反射方法解析是首轮主要分配热点；`Method.copy` 有 987 个顶层分配样本，代理调用和方法查找分别出现在 1070、1057 个包含式分配样本中。
+2. **Optimize**：按请求类缓存 Servlet 访问方法，移除入口动态代理；trace header 命中后短路；避免 `traceparent` 正则切分和未使用的请求字段读取；去掉 `LineEntity` JSON 往返转换、集合临时字符串、同步 `Stack` 和关闭级别日志的提前序列化。
+3. **Verify**：优化后的 JFR 主要热点列表中不再出现上述代理/反射帧。200 RPS 的配对吞吐损失从首轮的 `-8.7% / -17.9%` 变为 `-0.1% / -4.3%`（10% / 100% 采样）。
+4. **Remaining bottleneck**：HTTP 逐条同步发送和 JSON 序列化成为主要 Agent CPU 路径；LINE 事件、ThreadLocal 状态、增强范围和队列竞争仍需结合真实服务继续评估。
+
+前后两组 Benchmark 是同机顺序执行，并非交错 A/B；Baseline 和 P99 存在波动，不能把全部变化严格归因于本次代码优化。完整方法、配对数据、JFR 证据和限制见 [Benchmark 结果](benchmarks/RESULTS.md)。
 
 ## 构建与测试
 
@@ -265,7 +289,7 @@ mvn clean test -Dmaven.javadoc.skip=true
 mvn clean package -Dmaven.javadoc.skip=true
 ```
 
-当前根工程包含 66 个单元测试，最近一次验证结果为 66 passed、0 failed、0 errors、0 skipped。
+当前根工程包含 69 个单元测试，最近一次验证结果为 69 passed、0 failed、0 errors、0 skipped。
 
 ## 兼容性与部署注意事项
 
@@ -280,6 +304,7 @@ mvn clean package -Dmaven.javadoc.skip=true
 - [配置指南](docs/configuration-guide.md)
 - [部署指南](docs/deployment-guide.md)
 - [Demo](examples/demo-servlet/README.md)
+- [Test Case Mapping Demo](examples/test-case-mapping/README.md)
 - [Benchmark 结果](benchmarks/RESULTS.md)
 - [贡献指南](CONTRIBUTING.md)
 - [变更记录](CHANGELOG.md)

@@ -17,19 +17,19 @@
 package io.deepcover.agent.entity;
 
 import com.alibaba.fastjson.JSONObject;
-import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.sql.Timestamp;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
  * 代码行信息
  *
- * @author yingzhu
+ * @author DeepCover Contributors
  * @date 2022年11月28日
  */
 //@Data
@@ -55,18 +55,48 @@ public class LineEntity {
 
   @Override
   public boolean equals(Object obj) {
-    if(obj instanceof LineEntity) {
-      LineEntity line = (LineEntity)obj;
-      return this.getClassName().equals(line.getClassName())
-              &&this.getMethodName().equals(line.getMethodName())&&this.getParameters().toString().equals(line.getParameters().toString())
-              &&this.getLineNum().toString().equals(line.getLineNum().toString());
-    }else {
+    if (this == obj) {
+      return true;
+    }
+    if (!(obj instanceof LineEntity)) {
       return false;
     }
+    LineEntity line = (LineEntity) obj;
+    return Objects.equals(className, line.className)
+            && Objects.equals(methodName, line.methodName)
+            && Objects.equals(parameters, line.parameters)
+            && orderedLinesEqual(lineNum, line.lineNum);
   }
 
   @Override
-  public String toString() {
+  public int hashCode() {
+    int result = Objects.hash(className, methodName, parameters);
+    if (lineNum != null) {
+      for (Integer line : lineNum) {
+        result = 31 * result + Objects.hashCode(line);
+      }
+    }
+    return result;
+  }
+
+  private boolean orderedLinesEqual(Set<Integer> left, Set<Integer> right) {
+    if (left == right) {
+      return true;
+    }
+    if (left == null || right == null || left.size() != right.size()) {
+      return false;
+    }
+    Iterator<Integer> leftIterator = left.iterator();
+    Iterator<Integer> rightIterator = right.iterator();
+    while (leftIterator.hasNext()) {
+      if (!Objects.equals(leftIterator.next(), rightIterator.next())) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  JSONObject toJsonObject() {
     return new JSONObject()
         .fluentPut("invokeId", invokeId)
         .fluentPut("beginTime", beginTime)
@@ -74,7 +104,11 @@ public class LineEntity {
         .fluentPut("className", className)
         .fluentPut("methodName", methodName)
         .fluentPut("parameters", parameters)
-        .fluentPut("lineNum", lineNum)
-        .toJSONString();
+        .fluentPut("lineNum", lineNum);
+  }
+
+  @Override
+  public String toString() {
+    return toJsonObject().toJSONString();
   }
 }

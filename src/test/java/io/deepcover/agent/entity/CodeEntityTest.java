@@ -85,6 +85,7 @@ public class CodeEntityTest {
 
         JSONObject lineObj = codeInfoArray.getJSONObject(0);
         assertEquals("com.example.Demo", lineObj.getString("className"));
+        assertFalse(lineObj.containsKey("limitReached"));
         JSONArray lineNums = lineObj.getJSONArray("lineNum");
         assertEquals(2, lineNums.size());
         assertTrue(lineNums.contains(15));

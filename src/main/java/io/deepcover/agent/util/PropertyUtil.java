@@ -21,7 +21,7 @@ import org.apache.commons.lang3.StringUtils;
 
 /**
  * @description:
- * @author: wuchen
+ * @author: DeepCover Contributors
  * @time: 2023/2/28 20:03
  */
 public class PropertyUtil {

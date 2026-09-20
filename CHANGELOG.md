@@ -88,7 +88,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/
 ### 新增
 
 - 可复现 Benchmark 工具，支持固定目标 RPS、CPU/RSS 采样、队列排空和发送一致性校验
+- Oracle JDK 8 JFR 采集与热点汇总脚本，用于记录 Profile -> Optimize -> Benchmark 过程
 - 独立运行的嵌入式 Jetty demo JAR
+- Test Case ID -> traceId -> HTTP Request -> Code Relation 的最小映射示例
 - 请求丢弃原因、采集行数和队列运行状态指标
 
 ### 修复
@@ -100,15 +102,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/
 - 配置中心改为可选，补充 JVM 系统属性、启动校验和结构配置重启提示
 - 移除当前实现未使用的 OpenTelemetry 和本地 `sandbox-spy.jar` Maven 依赖
 
+### 性能
+
+- Servlet 请求访问方法按 request 实现类缓存，移除请求入口的动态代理创建与重复方法解析
+- trace header 命中后短路，`traceparent` 使用索引解析，并停止读取未使用的请求字段
+- 移除 `LineEntity` JSON 序列化再解析、集合临时字符串和同步 `Stack` 热路径
+- Benchmark 场景按 repeat 轮换，并增加同轮 Baseline 配对增量
+- 200 RPS 配对吞吐变化从首轮的 `-8.7% / -17.9%` 改善为 `-0.1% / -4.3%`（10% / 100% 采样）；CPU、RSS 和 P99 仍记录为已知瓶颈
+
 ### 文档
 
 - 增加 Why DeepCover、精准测试闭环架构、能力边界和非目标
-- 增加 50/100/200 RPS、10%/100% 采样的实测结果与限制说明
+- 增加 Performance Optimization Journey、JFR 前后热点和 100/200 RPS 优化后结果
+- 增加 Test Case 到请求与代码关系的可运行示例
 - 配置与部署文档按当前源码行为重写
 
 ### 测试
 
-- 根工程单元测试增加到 66 个
+- 根工程单元测试增加到 69 个
 
 ### 计划中
 
@@ -118,6 +129,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/
 ### 已知问题
 
 - 回调查询表存在性能问题，建议生产环境设置合理采样率
+- HTTP 模式当前仍逐条同步发送；200 RPS 下 CPU、RSS 和 P99 开销仍然显著
 - 需要与 SkyWalking agent 配合使用 (SkyWalking 必须在 DeepCover 之后加载)
 
 ---

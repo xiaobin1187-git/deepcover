@@ -48,12 +48,12 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * @description: 代码行采集器
- * @author: wuchen
+ * @author: DeepCover Contributors
  * @time: 2023/3/9 20:19
  */
 
 @MetaInfServices(Module.class)
-@Information(id = "deepcover", version = "0.0.3", author = "wuchen")
+@Information(id = "deepcover", version = "0.0.3", author = "DeepCover Contributors")
 @Slf4j
 public class CodeCollecter implements Module, ModuleLifecycle {
 

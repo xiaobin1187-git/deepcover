@@ -23,7 +23,7 @@ import java.io.Serializable;
 /**
  * 模型信息
  *
- * @author yingzhu
+ * @author DeepCover Contributors
  * @date 2022年11月28日
  */
 @Data

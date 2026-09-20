@@ -19,7 +19,7 @@ package io.deepcover.agent.config.queue;
 /**
  * 本地异步处理数据封装类
  *
- * @Author shudian
+ * @author DeepCover Contributors
  * @Date 2024/3/14-19:26
  * @Version 1.0
  */
