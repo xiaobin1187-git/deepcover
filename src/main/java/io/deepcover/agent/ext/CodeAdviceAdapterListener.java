@@ -27,12 +27,11 @@ import com.alibaba.jvm.sandbox.api.util.LazyGet;
 import io.deepcover.agent.config.DeepCoverConfig;
 import io.deepcover.agent.entity.CodeEntity;
 import io.deepcover.agent.util.ExceptionAwareUtil;
+import io.deepcover.agent.util.MetricsCollector;
 import io.deepcover.agent.util.TraceContext;
 import io.deepcover.agent.util.TraceUtil;
 import io.deepcover.agent.util.http.HttpAccessUtil;
 import lombok.extern.slf4j.Slf4j;
-import java.com.alibaba.jvm.sandbox.spy.Spy;
-import java.com.alibaba.jvm.sandbox.spy.SpyTraceEnum;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.Stack;
@@ -59,6 +58,13 @@ public class CodeAdviceAdapterListener implements EventListener {
 
     private final ThreadLocal<OpStack> opStackRef = ThreadLocal.withInitial(OpStack::new);
     private final ThreadLocal<String> traceIdRef = ThreadLocal.withInitial(String::new);
+    private final ThreadLocal<AccessState> accessStateRef = ThreadLocal.withInitial(() -> AccessState.INIT);
+
+    private enum AccessState {
+        INIT,
+        PASS,
+        REFUSE
+    }
 
     @Override
     final public void onEvent(final Event event) throws Throwable {
@@ -70,12 +76,6 @@ public class CodeAdviceAdapterListener implements EventListener {
             log.warn("code exception occurred when dispatch event={}", event, throwable);
             ExceptionAwareUtil.exceptionOverflow(throwable);
         } finally {
-            if (!Spy.access()) {
-                opStackRef.remove();
-                traceIdRef.remove();
-                Spy.traceIdThreadLocal.remove();
-                return;
-            }
             switch (event.type) {
                 case LINE:
                     break;
@@ -84,7 +84,8 @@ public class CodeAdviceAdapterListener implements EventListener {
                     if (opStackRef.get().isEmpty()) {
                         opStackRef.remove();
                         traceIdRef.remove();
-                        Spy.traceIdThreadLocal.remove();
+                        accessStateRef.remove();
+                        TraceContext.clear();
                     }
             }
         }
@@ -100,26 +101,38 @@ public class CodeAdviceAdapterListener implements EventListener {
                 final BeforeEvent bEvent = (BeforeEvent) event;
                 HttpAccessUtil httpAccess = null;
                 if ("javax.servlet.http.HttpServlet".equals(bEvent.javaClassName)) {
-                    switch (Spy.traceIdThreadLocal.get()) {
+                    switch (accessStateRef.get()) {
                         case INIT: {
-                            String traceId = TraceContext.traceId();
-                            if (!access(traceId)) {
-                                log.debug("event access failed,traceId={},", TraceContext.traceId());
-                                Spy.traceIdThreadLocal.set(SpyTraceEnum.REFUSE);
+                            MetricsCollector.totalRequests.incrementAndGet();
+                            httpAccess = new HttpAccessUtil().wrapperHttpAccess(bEvent.argumentArray);
+                            String traceId = TraceContext.startTrace(httpAccess.getTraceId());
+                            if (isCircuitBreakerPaused()) {
+                                MetricsCollector.circuitBreakerDroppedRequests.incrementAndGet();
+                                MetricsCollector.droppedRequests.incrementAndGet();
+                                log.debug("event access rejected by circuit breaker,traceId={}", traceId);
+                                accessStateRef.set(AccessState.REFUSE);
                                 return;
                             }
-                            httpAccess = new HttpAccessUtil().wrapperHttpAccess(bEvent.argumentArray);
+                            if (!TraceUtil.inTimeSample(traceId)) {
+                                MetricsCollector.sampledOutRequests.incrementAndGet();
+                                MetricsCollector.droppedRequests.incrementAndGet();
+                                log.debug("event access rejected by sampling,traceId={}", traceId);
+                                accessStateRef.set(AccessState.REFUSE);
+                                return;
+                            }
                             String[] urls = DeepCoverConfig.ignoreUrls.split(";");
                             for (String url : urls) {
                                 if (url.length() > 0) {
                                     Pattern p = URL_PATTERN_CACHE.computeIfAbsent(url, Pattern::compile);
                                     if (p.matcher(httpAccess.getUri()).matches()) {
-                                        Spy.traceIdThreadLocal.set(SpyTraceEnum.REFUSE);
+                                        MetricsCollector.ignoredRequests.incrementAndGet();
+                                        MetricsCollector.droppedRequests.incrementAndGet();
+                                        accessStateRef.set(AccessState.REFUSE);
                                         return;
                                     }
                                 }
                             }
-                            Spy.traceIdThreadLocal.set(SpyTraceEnum.PASS);
+                            accessStateRef.set(AccessState.PASS);
                             traceIdRef.set(traceId);
                             break;
                         }
@@ -130,13 +143,13 @@ public class CodeAdviceAdapterListener implements EventListener {
                             if (traceIdRef.get().equals(TraceContext.traceId())) {
                                 return;
                             } else {
-                                Spy.traceIdThreadLocal.set(SpyTraceEnum.INIT);
+                                accessStateRef.set(AccessState.INIT);
                                 return;
                             }
                         }
                     }
                 } else {
-                    switch (Spy.traceIdThreadLocal.get()) {
+                    switch (accessStateRef.get()) {
                         case REFUSE:
                             return;
                         case INIT:
@@ -176,7 +189,7 @@ public class CodeAdviceAdapterListener implements EventListener {
                 final OpStack opStack = opStackRef.get();
                 if ("javax.servlet.http.HttpServlet".equals(bEvent.javaClassName)) {
                     if (!opStack.isEmpty()) {
-                        Spy.traceIdThreadLocal.set(SpyTraceEnum.REFUSE);
+                        accessStateRef.set(AccessState.REFUSE);
                         return;
                     }
                 }
@@ -190,16 +203,6 @@ public class CodeAdviceAdapterListener implements EventListener {
                     top = parent.getProcessTop();
                 }
 
-                //提取attachment信息
-                if (top.attachment() != null) {
-                    CodeEntity codeEntity = top.attachment();
-                    if (codeEntity.getCodeInfoSize() >= DeepCoverConfig.limitCodeMethodSize) {
-                        Spy.traceIdThreadLocal.set(SpyTraceEnum.REFUSE);
-                        opStackRef.remove();
-                        log.warn("单请求采集的代码节点数,超过上限:{},不继续采集,nowClass={},nowMethod={},traceId={},url={}", DeepCoverConfig.limitCodeMethodSize, bEvent.javaClassName, bEvent.javaMethodName, codeEntity.getTraceId(), codeEntity.getUrl());
-                        return;
-                    }
-                }
                 advice.applyBefore(top, parent);
 
                 opStackRef.get().pushForBegin(advice);
@@ -507,13 +510,12 @@ public class CodeAdviceAdapterListener implements EventListener {
      *
      * @return 是否通过
      */
-    protected boolean access(String traceId) {
-        if (DeepCoverConfig.exceptionThresholdTime > 0L && System.currentTimeMillis() - DeepCoverConfig.exceptionThresholdTime > DeepCoverConfig.exceptionPauseTime * 60 * 1000) {
+    protected boolean isCircuitBreakerPaused() {
+        if (DeepCoverConfig.exceptionThresholdTime > 0L && System.currentTimeMillis() - DeepCoverConfig.exceptionThresholdTime > DeepCoverConfig.exceptionPauseTime * 1000L) {
             DeepCoverConfig.exceptionThresholdTime = 0L;
             ExceptionAwareUtil.clear();
         }
-        return DeepCoverConfig.exceptionThresholdTime == 0L && TraceUtil.inTimeSample(traceId);
-//        return TraceUtil.inTimeSample(traceId);
+        return DeepCoverConfig.exceptionThresholdTime > 0L;
     }
 
 }

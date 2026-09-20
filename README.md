@@ -1,349 +1,290 @@
 <p align="center"><img src="docs/assets/logo.svg" alt="DeepCover" width="96" height="96"></p>
 
-# DeepCover - 代码全链路精准分析采集 Agent
+# DeepCover - JVM 运行时请求与代码关系采集 Agent
 
 **[中文](README.md)** | [English](README_EN.md) | [日本語](README_JA.md) | [Francais](README_FR.md) | [Portugues](README_PT.md) | [Русский](README_RU.md)
+
+> 其他语言版本尚未完全同步本次能力边界与 Benchmark，当前事实以本中文 README 和源码为准。
 
 <div align="center">
 
 ![CI](https://img.shields.io/github/actions/workflow/status/xiaobin1187-git/deepcover/ci.yml?branch=main)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
-![Java](https://img.shields.io/badge/Java-1.8-orange)
-![Maven](https://img.shields.io/badge/Maven-3.5-blue)
-![Tests](https://img.shields.io/badge/Tests-52_passed-brightgreen)
+![Java](https://img.shields.io/badge/Java-8-orange)
+![Maven](https://img.shields.io/badge/Maven-3.5+-blue)
+![Tests](https://img.shields.io/badge/Tests-66_passed-brightgreen)
 
 </div>
 
-> 基于 JVM Sandbox 的 Java 精准分析采集工具，实现无侵入的应用代码行级精准分析监控
+DeepCover 基于 Alibaba JVM Sandbox，在不修改业务源码的情况下，记录一次 Java Servlet HTTP 请求实际执行过的类、方法和代码行，并通过 HTTP 或 Kafka 输出这些运行时关系。
 
-## 简介
+它是精准测试体系中的**运行时证据采集层**，不是完整的覆盖率平台或测试选择平台。
 
-DeepCover 是一个基于 Alibaba JVM Sandbox 的**无侵入式 Java 精准分析采集 Agent**，可以在不修改应用源码的情况下，实时采集应用运行的代码行执行情况。
+## Why DeepCover
 
-### 主要特性
+随着服务规模、发布频率和测试资产增长，全量回归通常面临三个问题：
 
-- **无侵入采集** -- 基于 JVM Sandbox 字节码增强技术，无需修改应用代码
-- **代码行级精准分析** -- 精确到每一行代码的执行记录
-- **HTTP 请求追踪** -- 自动识别和追踪 HTTP Servlet 请求
-- **高性能设计** -- 异步队列 + 批量发送，减少对应用性能影响
-- **灵活配置** -- 支持类名、方法名、采样率等细粒度配置，支持配置中心动态热更新
-- **多种导出方式** -- 支持 HTTP、Kafka 两种数据导出方式
-- **OpenTelemetry 集成** -- 兼容 OpenTelemetry 标准，便于链路追踪
+1. 全量执行时间与资源成本持续增长，发布反馈变慢。
+2. 仅依赖静态调用分析容易包含理论可达但运行时并未发生的路径。
+3. 传统聚合覆盖率能说明“哪些代码被执行”，但通常不能直接回答“哪一个请求或测试执行了这些代码”。
 
-### 系统整体架构
+DeepCover 补充的是第三类数据：把请求 traceId、HTTP 上下文与本次执行的类、方法、行号关联起来。上层系统可以将历史运行时关系与代码差异、静态调用图和测试资产结合，用于影响分析、测试选择和覆盖验证。
 
-从代码采集到数据处理入库的完整链路：
+运行时关系只代表**已经观察到的执行路径**。没有被观察到不等于不可达，因此它不应单独替代静态分析或风险判断。
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        目标应用 JVM                                  │
-│                                                                     │
-│  ┌─────────────┐    ┌──────────────────┐    ┌───────────────────┐  │
-│  │ HTTP Request │───>│  JVM Sandbox     │───>│  DeepCover Agent  │  │
-│  │              │    │  (javaagent)      │    │  (采集模块)        │  │
-│  └─────────────┘    └──────────────────┘    └────────┬──────────┘  │
-│                                                        │            │
-│                              ┌──────────────────────────┘            │
-│                              │                                       │
-│                     ┌────────┴────────┐                              │
-│                     │  本地异步队列     │  批量攒批                      │
-│                     │  LocalAsyncQueue │  (queue x N)                  │
-│                     └────────┬────────┘                              │
-│                              │                                       │
-└──────────────────────────────┼───────────────────────────────────────┘
-                               │
-              ┌────────────────┴────────────────┐
-              │                                  │
-     ┌────────┴────────┐              ┌─────────┴─────────┐
-     │  数据中心 (HTTP)  │              │  Kafka Cluster     │
-     │  /api/collect    │              │  precision-analysis     │
-     └────────┬────────┘              └─────────┬─────────┘
-              │                                  │
-              └────────────┬─────────────────────┘
-                           │
-              ┌────────────┴────────────┐
-              │  数据处理 / 存储服务      │
-              │                         │
-              │  - 精准分析计算         │
-              │  - 差异精准分析         │
-              │  - 采集数据持久化         │
-              │  - 精准分析报告生成         │
-              └─────────────────────────┘
+## 精准测试闭环中的位置
+
+下面是一个完整闭环的目标架构。实线框中的 DeepCover Agent 属于本仓库；标记为“外部”的节点需要由代码平台、测试平台、数据服务或 CI 系统提供。
+
+```mermaid
+flowchart LR
+    DIFF["Git Diff<br/>外部"] --> STATIC["静态调用关系<br/>外部"]
+    STATIC --> IMPACT["Impact Analysis<br/>外部"]
+    STORE["历史请求/测试-代码关系库<br/>外部"] --> IMPACT
+    IMPACT --> SELECT["Test Selection<br/>外部"]
+    SELECT --> EXEC["测试执行或流量回放<br/>外部"]
+    EXEC --> APP[被测 Java Servlet 应用]
+    APP --> DC["DeepCover Agent<br/>本仓库"]
+    DC --> STORE
+    DC --> VERIFY["Coverage Verification<br/>外部"]
+    DIFF --> VERIFY
+    VERIFY --> GATE["CI Gate<br/>外部"]
 ```
 
-### 采集器内部架构
+DeepCover 当前负责：
 
-Agent 在单个 JVM 内部的采集流程：
+- 在请求执行期间采集运行时代码关系。
+- 生成或复用 traceId，作为外部测试执行与采集数据关联的键。
+- 将采集结果投递给外部数据服务。
+- 暴露采样、丢弃、队列、发送和熔断指标。
 
-```
-                        ┌─────────────────────────────────────┐
-                        │          HTTP Request               │
-                        └──────────────┬──────────────────────┘
-                                       │
-                        ┌──────────────┴──────────────────────┐
-                        │       HttpServlet.service()          │
-                        │       (字节码增强切入点)               │
-                        └──────────────┬──────────────────────┘
-                                       │
- Event Flow:                           │
- ┌─────────────────────────────────────┼──────────────────────────┐
- │                                     │                          │
- │  [before]                                                      │
- │  ├─ 创建 CodeEntity, 绑定到 ProcessTop (ThreadLocal)            │
- │  ├─ 采样率检查 (基于 traceId 哈希)                                │
- │  ├─ URL 过滤 (ignoreUrls 正则匹配)                               │
- │  │                                                             │
- │  [beforeLine]  <── 每个被监控方法调用时触发                        │
- │  ├─ 从 ProcessTop 取出 CodeEntity                               │
- │  ├─ NPE 保护: codeEntity==null / isSend==1 / codeInfo==null     │
- │  ├─ 构造 LineEntity (className, methodName, 行号)               │
- │  │   └─ 行号自动去重 (LinkedHashSet, O(1))                      │
- │  ├─ 行号执行次数阈值检查 (limitCodeMethodLineSize)                │
- │  │   └─ 超阈值: 标记 REFUSE, 停止该方法的行号采集                 │
- │  │                                                             │
- │  [after]                                                       │
- │  ├─ 采集节点数阈值检查 (limitCodeMethodSize)                     │
- │  ├─ 标记 isSend=1, 防止重复发送                                 │
- │  ├─ 投递到 LocalAsyncQueue                                     │
- │  └─ finally: 清理 ThreadLocal, 防止内存泄漏                      │
- │                                                                │
- └────────────────────────────────────────────────────────────────┘
-                                       │
-                        ┌──────────────┴──────────────────────┐
-                        │        LocalAsyncEngine              │
-                        │                                     │
-                        │  ┌─────────┐  ┌─────────┐           │
-                        │  │ Queue 0 │  │ Queue 1 │  ...       │
-                        │  │ (批量攒批)│  │         │           │
-                        │  └────┬────┘  └────┬────┘           │
-                        │       │             │                │
-                        │  ┌────┴─────────────┴────┐           │
-                        │  │   Consumer Thread      │           │
-                        │  │   HTTP / Kafka 发送     │           │
-                        │  └───────────────────────┘           │
-                        │                                     │
-                        │  异常熔断: exceptionOverflow()       │
-                        │  └─ 时间窗口内超阈值 -> 暂停采集       │
-                        └─────────────────────────────────────┘
+本仓库当前不负责：
+
+- Git Diff 解析、静态调用图构建和变更影响计算。
+- 测试用例资产管理、自动选例、测试调度和结果判定。
+- 全量/增量覆盖率百分比计算、报告存储和可视化。
+- CI 准入规则和发布阻断。
+- 基于 AI 的用例生成、风险预测或自主决策。
+
+## 已实现能力
+
+| 能力 | 当前实现 |
+|---|---|
+| 接入方式 | JVM Sandbox 1.4.0 模块，Java 8 字节码增强，无需修改业务源码 |
+| 请求入口 | `javax.servlet.http.HttpServlet.service()` |
+| 采集粒度 | 请求上下文、类、方法、方法参数类型、调用序号、执行行号 |
+| 采集范围 | `packageName` 正则匹配的类，可配置类、方法、注解和 URL 过滤 |
+| TraceId | 优先读取 W3C `traceparent`，其次读取 B3、`X-Trace-Id`、`traceId`；缺失时生成 32 位 ID |
+| 采样 | 基于 traceId 哈希的确定性采样，`0-10000` 对应 `0%-100%` |
+| 保护机制 | 单请求方法节点上限、单方法行事件上限、有限队列、发送异常熔断 |
+| 数据出口 | HTTP 或 Kafka |
+| 异步处理 | 请求线程只投递本地有界队列；消费者批量出队。HTTP 模式当前仍按请求逐条发送 |
+| 配置 | JVM 系统属性、本地 properties、可选 `deepcover-brain` 配置中心 |
+| 运行指标 | 请求原因计数、采集行数、队列状态、发送成功/失败、熔断状态 |
+| 生命周期 | 支持模块加载、启动、停止、卸载，以及队列和客户端资源关闭 |
+
+## Agent 架构
+
+```mermaid
+flowchart TD
+    REQ[Servlet HTTP Request] --> SANDBOX[JVM Sandbox 事件]
+    SANDBOX --> ENTRY[Servlet 入口识别]
+    ENTRY --> TRACE[提取或生成 traceId]
+    TRACE --> GUARD{采样 / URL 过滤 / 熔断}
+    GUARD -->|拒绝| METRICS[原因与丢弃指标]
+    GUARD -->|通过| EVENTS[BEFORE / LINE / RETURN / THROWS]
+    EVENTS --> ENTITY[CodeEntity + LineEntity]
+    ENTITY --> LIMIT{节点与行事件阈值}
+    LIMIT -->|超限| METRICS
+    LIMIT -->|完成| QUEUE["LocalAsyncEngine<br/>有界队列"]
+    QUEUE --> HTTP[HTTP Sender]
+    QUEUE --> KAFKA[Kafka Producer]
+    HTTP --> DATACENTER[外部数据接收服务]
+    KAFKA --> DATACENTER
+    QUEUE --> METRICS
 ```
 
-### 配置热更新机制
+一次成功发送的 `CodeEntity` 主要包含：
 
-运行时配置通过两条路径动态更新，无需重启：
+- HTTP 类型、来源地址、端口、方法、URL 和开始时间。
+- 环境、服务名、分支、traceId 和 Sandbox processId。
+- `codeInfo`：按执行过程记录的 `LineEntity` 列表。
+- 每个 `LineEntity` 的类名、方法名、参数类型、调用序号、开始时间和去重后的行号集合。
 
-```
-┌────────────────┐     定时轮询 (reportPeriod)     ┌──────────────────┐
-│  配置中心        │ ──────────────────────────────> │  DeepCover Agent │
-│  (deepcover-    │                                 │                  │
-│   brain)        │ <────────────────────────────── │  reportServerInfo│
-└────────────────┘     返回最新配置 + 版本号         │                  │
-                                                │  版本比较:         │
-┌────────────────┐     syncConfig 命令            │  info.version >   │
-│  Sandbox HTTP  │ ──────────────────────────────> │  configVersion   │
-│  /deepcover/   │                                 │  -> 热更新 18 项  │
-│  syncCfg       │                                 │                  │
-└────────────────┘                                 └──────────────────┘
-```
+## 适用边界
 
-## 前置要求
+DeepCover 目前最适合测试环境、预发布环境或受控采样的 Java Servlet 服务。使用前需要了解以下边界：
 
-- Java 8+ (推荐 Java 1.8.0_202+)
-- Maven 3.5+
-- Alibaba JVM Sandbox 1.4.0
-- 应用运行在 JVM 上
+- 当前入口是 Servlet API，不直接覆盖 WebFlux、Netty、Dubbo 或非 HTTP 入口。
+- 请求上下文依赖线程本地状态；脱离请求线程执行的异步任务不会自动继承本次关联。
+- 代码行采集依赖 class 文件中的行号表；缺少调试行号信息时无法得到完整行级数据。
+- trace header 兼容不等于完整分布式追踪实现；本仓库不传播跨服务上下文，也不生成完整 span。
+- DeepCover 记录执行事实，不判断业务断言是否正确，也不证明未执行路径不可达。
+- 字节码行事件具有可观测开销，生产环境必须先做服务级压测并配置采样率和资源上限。
 
 ## 快速开始
 
-### 1. 编译项目
+### 1. 构建 Agent 与 Demo
 
 ```bash
-mvn clean package -Dmaven.test.skip=true -Dmaven.javadoc.skip=true
+mvn clean package -Dmaven.javadoc.skip=true
+mvn -f examples/demo-servlet/pom.xml clean package -Dmaven.javadoc.skip=true
 ```
 
-编译成功后，在 `target/` 目录下生成 `deepcover-agent-1.0-SNAPSHOT-jar-with-dependencies.jar`（包含所有依赖的完整 JAR）。
+构建结果：
 
-### 2. 配置应用启动参数
+- `target/deepcover-agent-1.0-SNAPSHOT-jar-with-dependencies.jar`
+- `sandbox/sandbox-module/deepcover-agent-1.0-SNAPSHOT-jar-with-dependencies.jar`
+- `examples/demo-servlet/target/demo-servlet.war`
+- `examples/demo-servlet/target/demo-servlet-1.0-SNAPSHOT-standalone.jar`
 
-在目标应用的 JVM 参数中添加：
+### 2. 启动本地接收端
 
 ```bash
--javaagent:/path/to/sandbox/lib/sandbox-agent.jar \
-  -Dapp.name=your-app-name \
-  -Denv=test
+python benchmarks/mock_receiver.py --port 18081
 ```
 
-**注意**: 如果使用 SkyWalking APM，请将 DeepCover agent 参数放在 SkyWalking agent 参数**前面**，否则会冲突。
+### 3. 启动带 DeepCover 的 Demo
 
-### 3. 部署 DeepCover 模块
+PowerShell 示例：
+
+```powershell
+$agent = "-javaagent:$PWD\sandbox\lib\sandbox-agent.jar=home=$PWD\sandbox;server.ip=127.0.0.1;server.port=4769;namespace=default"
+
+java $agent `
+  -Dapp.name=demo-servlet `
+  -Denv=test `
+  -Ddeepcover.env=test `
+  -Ddeepcover.configCenterEnabled=false `
+  '-Ddeepcover.packageName=io\.deepcover\.examples\.demo\..*' `
+  -Ddeepcover.sampleRate=10000 `
+  -Ddeepcover.sendDataCenterType=1 `
+  -Ddeepcover.dataCenterAddr=http://127.0.0.1:18081/collect `
+  -jar examples/demo-servlet/target/demo-servlet-1.0-SNAPSHOT-standalone.jar
+```
+
+### 4. 产生请求并检查结果
 
 ```bash
-# 方法1: 复制到 Sandbox 模块目录
-cp target/deepcover-agent-1.0-SNAPSHOT-jar-with-dependencies.jar \
-   /path/to/sandbox/sandbox-module/
-
-# 方法2: 通过 Sandbox HTTP 服务动态加载
-curl -X POST \
-  "http://sandbox-server:port/sandbox/default/module/http/sandbox-module-mgr/active?ids=deepcover"
+curl "http://127.0.0.1:18080/demo-servlet/user?action=list"
+curl "http://127.0.0.1:18080/demo-servlet/user?action=get&id=1"
+curl "http://127.0.0.1:4769/sandbox/default/module/http/deepcover/metrics"
+curl "http://127.0.0.1:18081/stats"
 ```
 
-### 4. 验证安装
+## 配置
+
+独立运行最直接的方式是使用 JVM 系统属性。`deepcover.properties` 主要用于按环境配置数据中心、配置中心和 Kafka 地址；配置中心可以通过 `deepcover.configCenterEnabled=false` 关闭。
+
+| JVM 属性 | 默认值 | 说明 |
+|---|---:|---|
+| `app.name` | `unknown` | 服务名，必填 |
+| `env` / `deepcover.env` | `unknown` | 采集环境，必填 |
+| `branch` | `master` | 代码分支标识 |
+| `deepcover.packageName` | 空 | 需要增强的业务类正则，必填 |
+| `deepcover.sampleRate` | `10000` | `10000=100%`、`1000=10%`、`100=1%` |
+| `deepcover.ignoreClasses` | 空 | 忽略类正则，分号分隔 |
+| `deepcover.ignoreMethods` | 空 | 忽略方法模式，分号分隔 |
+| `deepcover.ignoreAnnos` | 空 | 忽略注解，分号分隔 |
+| `deepcover.ignoreUrls` | 空 | 忽略 URL 正则，分号分隔 |
+| `deepcover.limitCodeMethodSize` | `500` | 单请求最大方法节点数；超限后整次请求不发送 |
+| `deepcover.limitCodeMethodLineSize` | `500` | 单方法最大行事件数；超限后停止该方法的行采集 |
+| `deepcover.sendDataCenterType` | `1` | `1=HTTP`，`2=Kafka` |
+| `deepcover.dataCenterAddr` | 空 | HTTP 接收地址 |
+| `deepcover.kafkaBootstrapServers` | 空 | Kafka broker 列表 |
+| `deepcover.kafkaTopic` | 空 | Kafka topic |
+| `deepcover.queueNum` | `1` | 本地队列和消费线程数量 |
+| `deepcover.queueSize` | `100` | 每个队列容量 |
+| `deepcover.queueMsgSize` | `50` | 每次出队的最大消息数 |
+| `deepcover.queueRecycleTime` | `10` | 空队列轮询休眠时间，毫秒 |
+| `deepcover.exceptionThreshold` | `10` | 时间窗口内触发熔断的发送异常数 |
+| `deepcover.exceptionCalcTime` | `1` | 异常统计窗口，分钟 |
+| `deepcover.exceptionPauseTime` | `5` | 熔断暂停时间，秒 |
+
+`syncConfig` 只会立即应用不需要重建监听器或队列的配置。响应中的 `restartRequired` 会列出已收到但未生效的结构性配置。
+
+立即生效：`sampleRate`、异常阈值、采集阈值、`queueMsgSize`、`queueRecycleTime`、`ignoreUrls`、发送类型和配置版本。
+
+需要重启并通过启动配置提供：`packageName`、`ignoreClasses`、`ignoreMethods`、`ignoreAnnos`、`queueNum`、`queueSize`、`reportPeriod`。
+
+完整说明见 [配置指南](docs/configuration-guide.md)。
+
+## 运行控制与指标
 
 ```bash
-# 检查日志中是否出现"加载完成"字样
-tail -f ~/sandbox/sandbox.log | grep "code-module"
+# 重新注册采集监听器
+curl -X POST "http://127.0.0.1:4769/sandbox/default/module/http/deepcover/startCodeModule"
+
+# 同步可动态生效的配置
+curl -X POST "http://127.0.0.1:4769/sandbox/default/module/http/deepcover/syncConfig" \
+  -d "sampleRate=1000&exceptionThreshold=20"
+
+# 查看指标
+curl "http://127.0.0.1:4769/sandbox/default/module/http/deepcover/metrics"
+
+# 卸载模块
+curl -X POST "http://127.0.0.1:4769/sandbox/default/module/http/deepcover/unloadCodeModule" \
+  -d "serviceName=demo-servlet"
 ```
 
-### 5. 运行测试
+指标包括：
+
+- `totalRequests`、`collectedRequests`、`sampledOutRequests`、`ignoredRequests`。
+- `emptyRequests`、`thresholdDroppedRequests`、`droppedRequests`。
+- `totalLinesCollected`、`methodThresholdReached`。
+- `sendSuccess`、`sendFailed`、`queueOfferFailed`。
+- `queueDepth`、`queueCapacity`、`queueCount`、`queueRunning`。
+- `circuitBreakerTripped`、`circuitBreakerDroppedRequests`、`circuitBreakerPaused`。
+
+## Benchmark
+
+仓库提供固定目标 QPS 的基准工具，并在写入结果前校验队列排空、发送结果和接收端计数。
+
+2026-09-20 的本机实验使用 50、100、200 RPS，每组运行 3 次。以下是中位数；Baseline 未加载 Sandbox，采样场景包含 Sandbox 与 DeepCover 的整体成本。
+
+| 目标负载 | 场景 | 实际 RPS | P99 ms | 平均 CPU % | 平均 RSS MB |
+|---:|---|---:|---:|---:|---:|
+| 50 | Baseline | 49.9 | 31.4 | 38.7 | 94.4 |
+| 50 | 10% 采样 | 50.0 | 35.6 | 168.2 | 231.5 |
+| 50 | 100% 采样 | 50.0 | 73.8 | 299.6 | 234.6 |
+| 100 | Baseline | 99.9 | 36.2 | 54.6 | 110.8 |
+| 100 | 10% 采样 | 99.7 | 112.1 | 348.4 | 253.9 |
+| 100 | 100% 采样 | 99.8 | 83.0 | 270.5 | 236.3 |
+| 200 | Baseline | 199.2 | 190.5 | 149.2 | 132.7 |
+| 200 | 10% 采样 | 181.8 | 1117.4 | 346.4 | 258.8 |
+| 200 | 100% 采样 | 161.3 | 1152.5 | 361.2 | 275.8 |
+
+这组数据表明：50 和 100 RPS 下可以维持目标吞吐，但资源占用和尾延迟增加；200 RPS 已接近本机 demo 的饱和区，10% 与 100% 采样的中位吞吐分别下降约 8.7% 和 19.0%，P99 中位数均超过 1.1 秒。三轮尾延迟波动较大，因此这些数据适合判断成本量级，不适合作为生产容量结论。
+
+完整方法、范围、采样命中率和限制见 [Benchmark 结果](benchmarks/RESULTS.md)。
+
+## 构建与测试
 
 ```bash
 mvn clean test -Dmaven.javadoc.skip=true
+mvn clean package -Dmaven.javadoc.skip=true
 ```
 
-当前测试覆盖 41 个用例，涵盖核心工具类和实体类。
+当前根工程包含 66 个单元测试，最近一次验证结果为 66 passed、0 failed、0 errors、0 skipped。
 
-## 配置说明
+## 兼容性与部署注意事项
 
-### 基础配置
-
-从示例模板复制配置文件：
-
-```bash
-cp src/main/resources/deepcover.properties.example src/main/resources/deepcover.properties
-```
-
-### 配置项一览
-
-| 配置项 | 说明 | 默认值/示例 |
-|--------|------|-------------|
-| `serviceName` | 应用名称 | - |
-| `env` | 环境标识: test/pre/pro | - |
-| `packageName` | 采集包名模式（正则） | `com.myapp.*` |
-| `ignoreClasses` | 忽略的类名模式（分号分隔） | `*.logger;*.frame;` |
-| `ignoreUrls` | 忽略的 URL（分号分隔） | `/health;/metrics` |
-| `ignoreAnnos` | 忽略的注解 | - |
-| `sampleRate` | 采样率（10000 = 100%） | `10000` |
-| `limitCodeMethodSize` | 单请求最大采集方法数 | `500` |
-| `limitCodeMethodLineSize` | 单方法最大行号采集次数 | `500` |
-| `sendDataCenterType` | 发送方式: 1=HTTP, 2=Kafka | `1` |
-| `dataCenterAddr` | 数据中心地址（HTTP 模式） | - |
-| `KAFKA_BOOTSTRAP_SERVERS` | Kafka 集群地址 | - |
-| `KAFKA_TOPIC` | Kafka 主题 | - |
-| `exceptionThreshold` | 异常熔断阈值 | `10` |
-| `exceptionCalcTime` | 异常计算时间窗口（分钟） | `1` |
-| `exceptionPauseTime` | 熔断暂停时间（秒） | `5` |
-
-所有配置项均支持通过 `syncConfig` 命令动态热更新，无需重启应用。
-
-### 采样率说明
-
-```
-sampleRate=10000   # 100% 采样
-sampleRate=5000    # 50% 采样
-sampleRate=100     # 1% 采样
-```
-
-采样率基于 traceId 哈希值计算，同一请求在不同实例上采样结果一致。
-
-## 动态控制 API
-
-通过 JVM Sandbox 的 HTTP 服务可以动态控制模块：
-
-```bash
-# 激活模块
-curl -X POST "http://sandbox-server:port/sandbox/default/module/http/sandbox-module-mgr/active?ids=deepcover"
-
-# 停用模块
-curl -X POST "http://sandbox-server:port/sandbox/default/module/http/sandbox-module-mgr/unactive?ids=deepcover"
-
-# 卸载模块（彻底卸载，需重启才能再次采集）
-curl -X POST "http://sandbox-server:port/sandbox/default/module/http/deepcover/unloadCodeModule" \
-  -d "serviceName=your-app-name"
-
-# 同步配置
-curl -X POST "http://sandbox-server:port/sandbox/default/module/http/deepcover/syncConfig" \
-  -d "sampleRate=5000&exceptionThreshold=20"
-```
-
-## 性能设计
-
-DeepCover 通过以下策略最小化对应用性能的影响：
-
-- **异步队列**: 数据发送使用独立线程池（core=4, max=8, queue=256），CallerRunsPolicy 防止任务丢失
-- **批量处理**: 本地队列批量攒批发送，减少网络开销
-- **采样机制**: 基于 traceId 的确定性采样，可按需调整采样率
-- **智能限流**: 方法行号达到阈值后自动停止采集该方法的行号信息
-- **异常熔断**: 发送异常超过阈值后自动暂停采集，防止雪崩
-- **正则缓存**: Pattern 编译结果缓存，避免热路径重复编译
-
-## 项目结构
-
-```
-deepcover/
-├── src/
-│   ├── main/java/io/deepcover/agent/
-│   │   ├── CodeCollecter.java       # Module 入口，生命周期管理
-│   │   ├── HttpCodeModule.java      # 采集核心逻辑
-│   │   ├── entity/                  # 数据实体
-│   │   │   ├── CodeEntity.java      # 一次请求的采集数据
-│   │   │   └── LineEntity.java      # 一个方法的行号信息
-│   │   ├── config/
-│   │   │   ├── DeepCoverConfig.java # 全局配置
-│   │   │   ├── ExecutorThreadPoolConfig.java  # 线程池配置
-│   │   │   ├── queue/               # 异步队列引擎
-│   │   │   └── kafka/               # Kafka 发送引擎
-│   │   ├── ext/                     # JVM Sandbox 扩展
-│   │   │   ├── CodeAdviceListener.java
-│   │   │   ├── CodeAdviceAdapterListener.java
-│   │   │   └── CodeEventWatchBuilder.java
-│   │   └── util/                    # 工具类
-│   │       ├── TraceContext.java     # TraceId 管理
-│   │       ├── TraceUtil.java       # 采样计算
-│   │       ├── ExceptionAwareUtil.java  # 异常熔断
-│   │       └── http/HttpClient2.java # HTTP 客户端
-│   └── test/java/                   # 单元测试（41 用例）
-├── src/main/resources/
-│   ├── deepcover.properties.example  # 配置模板
-│   └── logback.xml
-├── sandbox/                          # JVM Sandbox 二进制和配置
-├── LICENSE                           # Apache 2.0
-├── CONTRIBUTING.md                   # 贡献指南
-├── CHANGELOG.md                      # 变更日志
-└── README.md
-```
-
-## 安全说明
-
-- `deepcover.properties` 已加入 `.gitignore`，不会意外提交敏感信息
-- 配置模板使用 `YOUR_*` 占位符替代真实地址和密钥
-- 所有依赖均为开源组件，无内部私有依赖
-
-### 依赖清单
-
-| 依赖 | 版本 | 用途 |
-|------|------|------|
-| Alibaba JVM Sandbox | 1.4.0 | 字节码增强框架 |
-| OpenTelemetry API | 1.30.0 | 链路追踪标准 |
-| Apache HttpClient | 4.5.6 | HTTP 数据发送 |
-| Hutool | 5.8.9 | HTTP 工具（配置中心上报） |
-| FastJSON | 2.0.25 | JSON 序列化 |
-| Logback | 1.2.1 | 日志框架 |
-| Lombok | 1.18.12 | 代码简化 |
-| Kafka Clients | 2.4.1 | Kafka 数据发送 |
-| Guava | 18.0 | 工具类 |
-
-## 注意事项
-
-1. **性能影响**: 采集有性能开销，生产环境建议设置合理采样率
-2. **SkyWalking 兼容**: DeepCover agent 必须在 SkyWalking agent 之前加载
-3. **资源占用**: 采集数据会占用内存，根据应用情况调整 `limitCodeMethodSize`
-4. **测试环境先行**: 生产部署前务必在测试环境充分验证
+- Java 8+，构建目标为 Java 8。
+- JVM Sandbox 版本为 1.4.0。
+- 项目已有部署经验要求 DeepCover/Sandbox javaagent 位于 SkyWalking javaagent 之前；仍应在目标应用和目标 agent 版本上验证。
+- 建议先在测试或预发布环境校准采样率、包范围、队列容量和熔断阈值。
+- HTTP 和 Kafka 接收端应具备幂等、容量保护和数据保留策略，这些能力不由本仓库提供。
 
 ## 文档
 
-- [CONTRIBUTING.md](CONTRIBUTING.md) - 贡献指南
-- [CHANGELOG.md](CHANGELOG.md) - 变更日志
-- [LICENSE](LICENSE) - Apache 2.0 许可证
+- [配置指南](docs/configuration-guide.md)
+- [部署指南](docs/deployment-guide.md)
+- [Demo](examples/demo-servlet/README.md)
+- [Benchmark 结果](benchmarks/RESULTS.md)
+- [贡献指南](CONTRIBUTING.md)
+- [变更记录](CHANGELOG.md)
+- [许可证](LICENSE)
 
-## 许可证
+## License
 
-本项目采用 [Apache License 2.0](LICENSE) 许可证开源。
+DeepCover 使用 [Apache License 2.0](LICENSE)。

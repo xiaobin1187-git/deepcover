@@ -5,6 +5,8 @@
 # 使用说明：
 # 1. 复制此文件为 deepcover.properties
 # 2. 根据实际情况修改以下占位符
+# 3. 独立运行且不使用配置中心时，增加 JVM 参数：
+#    -Ddeepcover.configCenterEnabled=false
 #
 # ============================================
 
@@ -68,22 +70,6 @@ pre.KAFKA_BOOTSTRAP_SERVERS=YOUR_KAFKA_BROKER_1:9094,YOUR_KAFKA_BROKER_2:9095,YO
 # Kafka 主题名称
 pre.KAFKA_TOPIC=YOUR_KAFKA_TOPIC
 
-# ============================================
-# 性能配置
-# ============================================
-
-# 单请求采集的最大代码节点数，超过此值不发送
-# 默认值：500
-limit.codeInfo.size=500
-
-# 单方法最大行号采集次数，超过此值警告
-# 默认值：500
-#limit.codeInfo.line.size=500
-
-# ============================================
-# 日志级别配置
-# ============================================
-
-# 0:error, 1:warn, 2:info, 3:debug, 4:trace
-# 默认值：0
-log.level=0
+# 采样率、采集范围、阈值、队列和熔断参数不从本文件读取。
+# 请通过 -Ddeepcover.* JVM 系统属性或 deepcover-brain 配置中心提供。
+# 详见 docs/configuration-guide.md。

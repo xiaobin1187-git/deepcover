@@ -27,18 +27,22 @@ import com.alibaba.jvm.sandbox.api.resource.ModuleEventWatcher;
 import io.deepcover.agent.config.DeepCoverConfig;
 import io.deepcover.agent.config.ExecutorThreadPoolConfig;
 import io.deepcover.agent.config.kafka.KafkaProducerEngine;
+import io.deepcover.agent.config.queue.LocalAsyncConfig;
 import io.deepcover.agent.entity.ReportServerEntity;
 import io.deepcover.agent.ext.CodeEventWatcher;
 import io.deepcover.agent.util.MetricsCollector;
 import io.deepcover.agent.util.http.HttpClient2;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.kohsuke.MetaInfServices;
 
 import javax.annotation.Resource;
 import java.io.PrintWriter;
 import java.net.InetAddress;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -82,6 +86,7 @@ public class CodeCollecter implements Module, ModuleLifecycle {
             ExecutorThreadPoolConfig.scheduleEx.shutdownNow();
             Thread.currentThread().interrupt();
         }
+        LocalAsyncConfig.shutdown();
         HttpClient2.shutdown();
         KafkaProducerEngine.shutdown();
     }
@@ -132,14 +137,16 @@ public class CodeCollecter implements Module, ModuleLifecycle {
 //        }
 //
 //        System.out.println("main thread finished");
-        ExecutorThreadPoolConfig.scheduleEx.scheduleAtFixedRate(new Thread(new Runnable() {
+        if (DeepCoverConfig.configCenterEnabled && StringUtils.isNotBlank(DeepCoverConfig.configCenterAddr)) {
+            ExecutorThreadPoolConfig.scheduleEx.scheduleAtFixedRate(new Thread(new Runnable() {
 
             @Override
             public void run() {
                 Thread.currentThread().setName("code-module-sync-"+Thread.currentThread().getId());
                 reportServerInfo();
             }
-        }), DeepCoverConfig.reportPeriod,DeepCoverConfig.reportPeriod, TimeUnit.SECONDS);
+            }), DeepCoverConfig.reportPeriod,DeepCoverConfig.reportPeriod, TimeUnit.SECONDS);
+        }
 
     }
 
@@ -203,6 +210,7 @@ public class CodeCollecter implements Module, ModuleLifecycle {
             ExecutorThreadPoolConfig.scheduleEx.shutdownNow();
             Thread.currentThread().interrupt();
         }
+        LocalAsyncConfig.shutdown();
         HttpClient2.shutdown();
         KafkaProducerEngine.shutdown();
         writer.println(String.format("[应用=%s] unload success.", DeepCoverConfig.serviceName));
@@ -219,37 +227,123 @@ public class CodeCollecter implements Module, ModuleLifecycle {
     @Command("syncConfig")
     public void syncConfig (final Map<String, String> param,final PrintWriter writer){
         log.info("开始同步配置信息:{}",param);
+        Integer previousSampleRate = DeepCoverConfig.sampleRate;
+        Integer previousExceptionThreshold = DeepCoverConfig.exceptionThreshold;
+        Integer previousExceptionCalcTime = DeepCoverConfig.exceptionCalcTime;
+        Integer previousExceptionPauseTime = DeepCoverConfig.exceptionPauseTime;
+        Integer previousLimitCodeMethodSize = DeepCoverConfig.limitCodeMethodSize;
+        Integer previousLimitCodeMethodLineSize = DeepCoverConfig.limitCodeMethodLineSize;
+        Integer previousQueueMsgSize = DeepCoverConfig.queueMsgSize;
+        Integer previousQueueRecycleTime = DeepCoverConfig.queueRecycleTime;
+        Integer previousSendDataCenterType = DeepCoverConfig.sendDataCenterType;
+        Integer previousConfigVersion = DeepCoverConfig.configVersion;
+        String previousIgnoreUrls = DeepCoverConfig.ignoreUrls;
         try {
-            DeepCoverConfig.sampleRate=param.get("sampleRate")==null?DeepCoverConfig.sampleRate:Integer.valueOf(param.get("sampleRate"));
-            DeepCoverConfig.exceptionThreshold=param.get("exceptionThreshold")==null?DeepCoverConfig.exceptionThreshold:Integer.valueOf(param.get("exceptionThreshold"));
-            DeepCoverConfig.exceptionCalcTime=param.get("exceptionCalcTime")==null?DeepCoverConfig.exceptionCalcTime:Integer.valueOf(param.get("exceptionCalcTime"));
-            DeepCoverConfig.exceptionPauseTime=param.get("exceptionPauseTime")==null?DeepCoverConfig.exceptionPauseTime:Integer.valueOf(param.get("exceptionPauseTime"));
-            DeepCoverConfig.reportPeriod=param.get("reportPeriod")==null?DeepCoverConfig.reportPeriod:Integer.valueOf(param.get("reportPeriod"));
-            DeepCoverConfig.ignoreAnnos=param.getOrDefault("ignoreAnnos",DeepCoverConfig.ignoreAnnos);
-            DeepCoverConfig.ignoreUrls=param.getOrDefault("ignoreUrls",DeepCoverConfig.ignoreUrls);
-            DeepCoverConfig.ignoreClasses=param.getOrDefault("ignoreClasses",DeepCoverConfig.ignoreClasses);
-            DeepCoverConfig.ignoreMethods=param.getOrDefault("ignoreMethods",DeepCoverConfig.ignoreMethods);
-            DeepCoverConfig.packageName=param.getOrDefault("packageName",DeepCoverConfig.packageName);
-            DeepCoverConfig.configVersion=param.get("configVersion")==null?DeepCoverConfig.configVersion:Integer.valueOf(param.get("configVersion"));
-            DeepCoverConfig.limitCodeMethodSize=param.get("limitCodeMethodSize")==null?DeepCoverConfig.limitCodeMethodSize:Integer.valueOf(param.get("limitCodeMethodSize"));
-            DeepCoverConfig.limitCodeMethodLineSize=param.get("limitCodeMethodLineSize")==null?DeepCoverConfig.limitCodeMethodLineSize:Integer.valueOf(param.get("limitCodeMethodLineSize"));
-            DeepCoverConfig.sendDataCenterType=param.get("sendDataCenterType")==null?DeepCoverConfig.sendDataCenterType:Integer.valueOf(param.get("sendDataCenterType"));
-            DeepCoverConfig.queueNum=param.get("queueNum")==null?DeepCoverConfig.queueNum:Integer.valueOf(param.get("queueNum"));
-            DeepCoverConfig.queueSize=param.get("queueSize")==null?DeepCoverConfig.queueSize:Integer.valueOf(param.get("queueSize"));
-            DeepCoverConfig.queueMsgSize=param.get("queueMsgSize")==null?DeepCoverConfig.queueMsgSize:Integer.valueOf(param.get("queueMsgSize"));
-            DeepCoverConfig.queueRecycleTime=param.get("queueRecycleTime")==null?DeepCoverConfig.queueRecycleTime:Integer.valueOf(param.get("queueRecycleTime"));
+            List<String> applied = new ArrayList<>();
+            List<String> restartRequired = new ArrayList<>();
+            if (param.containsKey("sampleRate")) {
+                int value = Integer.parseInt(param.get("sampleRate"));
+                if (value < 0 || value > 10000) {
+                    throw new IllegalArgumentException("sampleRate must be between 0 and 10000");
+                }
+                DeepCoverConfig.sampleRate = value;
+                applied.add("sampleRate");
+            }
+            DeepCoverConfig.exceptionThreshold = updatePositiveInteger(param, "exceptionThreshold", DeepCoverConfig.exceptionThreshold, applied);
+            DeepCoverConfig.exceptionCalcTime = updatePositiveInteger(param, "exceptionCalcTime", DeepCoverConfig.exceptionCalcTime, applied);
+            DeepCoverConfig.exceptionPauseTime = updatePositiveInteger(param, "exceptionPauseTime", DeepCoverConfig.exceptionPauseTime, applied);
+            DeepCoverConfig.limitCodeMethodSize = updatePositiveInteger(param, "limitCodeMethodSize", DeepCoverConfig.limitCodeMethodSize, applied);
+            DeepCoverConfig.limitCodeMethodLineSize = updatePositiveInteger(param, "limitCodeMethodLineSize", DeepCoverConfig.limitCodeMethodLineSize, applied);
+            DeepCoverConfig.queueMsgSize = updatePositiveInteger(param, "queueMsgSize", DeepCoverConfig.queueMsgSize, applied);
+            DeepCoverConfig.queueRecycleTime = updatePositiveInteger(param, "queueRecycleTime", DeepCoverConfig.queueRecycleTime, applied);
+            if (param.containsKey("ignoreUrls")) {
+                DeepCoverConfig.ignoreUrls = param.get("ignoreUrls");
+                applied.add("ignoreUrls");
+            }
+            Integer requestedSendDataCenterType = null;
+            if (param.containsKey("sendDataCenterType")) {
+                int value = Integer.parseInt(param.get("sendDataCenterType"));
+                if (value != 1 && value != 2) {
+                    throw new IllegalArgumentException("sendDataCenterType must be 1 or 2");
+                }
+                if (value == 1 && StringUtils.isBlank(DeepCoverConfig.dataCenterAddr)) {
+                    throw new IllegalArgumentException("HTTP send type requires deepcover.dataCenterAddr");
+                }
+                if (value == 2 && (StringUtils.isBlank(DeepCoverConfig.KAFKA_BOOTSTRAP_SERVERS)
+                        || StringUtils.isBlank(DeepCoverConfig.KAFKA_TOPIC))) {
+                    throw new IllegalArgumentException("Kafka send type requires broker and topic");
+                }
+                requestedSendDataCenterType = value;
+            }
+            if (param.containsKey("configVersion")) {
+                DeepCoverConfig.configVersion = Integer.parseInt(param.get("configVersion"));
+                applied.add("configVersion");
+            }
+            if (requestedSendDataCenterType != null) {
+                DeepCoverConfig.sendDataCenterType = requestedSendDataCenterType;
+                if (requestedSendDataCenterType == 2) {
+                    KafkaProducerEngine.initKafka();
+                } else if (previousSendDataCenterType == 2) {
+                    KafkaProducerEngine.shutdown();
+                }
+                applied.add("sendDataCenterType");
+            }
+            addRestartRequired(param, restartRequired, "reportPeriod", "ignoreAnnos", "ignoreClasses",
+                    "ignoreMethods", "packageName", "queueNum", "queueSize");
 
-            writer.println(String.format("[%s][version=%s] syncConfig success.", DeepCoverConfig.serviceName,DeepCoverConfig.configVersion));
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("success", true);
+            result.put("serviceName", DeepCoverConfig.serviceName);
+            result.put("configVersion", DeepCoverConfig.configVersion);
+            result.put("applied", applied);
+            result.put("restartRequired", restartRequired);
+            writer.println(JSONObject.toJSONString(result));
 
         }catch (Exception e){
-            writer.println(String.format("[%s][version=%s] syncConfig failed.", DeepCoverConfig.serviceName,DeepCoverConfig.configVersion));
-            log.error("更新配置失败,version={},{}",DeepCoverConfig.configVersion,e);
+            DeepCoverConfig.sampleRate = previousSampleRate;
+            DeepCoverConfig.exceptionThreshold = previousExceptionThreshold;
+            DeepCoverConfig.exceptionCalcTime = previousExceptionCalcTime;
+            DeepCoverConfig.exceptionPauseTime = previousExceptionPauseTime;
+            DeepCoverConfig.limitCodeMethodSize = previousLimitCodeMethodSize;
+            DeepCoverConfig.limitCodeMethodLineSize = previousLimitCodeMethodLineSize;
+            DeepCoverConfig.queueMsgSize = previousQueueMsgSize;
+            DeepCoverConfig.queueRecycleTime = previousQueueRecycleTime;
+            DeepCoverConfig.sendDataCenterType = previousSendDataCenterType;
+            DeepCoverConfig.configVersion = previousConfigVersion;
+            DeepCoverConfig.ignoreUrls = previousIgnoreUrls;
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("success", false);
+            result.put("serviceName", DeepCoverConfig.serviceName);
+            result.put("configVersion", DeepCoverConfig.configVersion);
+            result.put("error", e.getMessage());
+            writer.println(JSONObject.toJSONString(result));
+            log.error("更新配置失败,version={}",DeepCoverConfig.configVersion,e);
         }finally {
             writer.flush();
             writer.close();
         }
 
 
+    }
+
+    private Integer updatePositiveInteger(Map<String, String> param, String key, Integer currentValue, List<String> applied) {
+        if (!param.containsKey(key)) {
+            return currentValue;
+        }
+        int value = Integer.parseInt(param.get(key));
+        if (value <= 0) {
+            throw new IllegalArgumentException(key + " must be positive");
+        }
+        applied.add(key);
+        return value;
+    }
+
+    private void addRestartRequired(Map<String, String> param, List<String> restartRequired, String... keys) {
+        for (String key : keys) {
+            if (param.containsKey(key)) {
+                restartRequired.add(key);
+            }
+        }
     }
 
     /**
@@ -264,12 +358,17 @@ public class CodeCollecter implements Module, ModuleLifecycle {
         metrics.put("uptimeSeconds", MetricsCollector.getUptimeSeconds());
         metrics.put("configVersion", DeepCoverConfig.configVersion);
         metrics.put("sampleRate", DeepCoverConfig.sampleRate);
-        metrics.put("sendType", DeepCoverConfig.sendDataCenterType == 1 ? "HTTP" : "Kafka");
+        metrics.put("sendType", DeepCoverConfig.sendDataCenterType == 1 ? "HTTP"
+                : DeepCoverConfig.sendDataCenterType == 2 ? "Kafka" : "UNKNOWN");
 
         // Request counters
         metrics.put("totalRequests", MetricsCollector.totalRequests.get());
         metrics.put("collectedRequests", MetricsCollector.collectedRequests.get());
         metrics.put("droppedRequests", MetricsCollector.droppedRequests.get());
+        metrics.put("sampledOutRequests", MetricsCollector.sampledOutRequests.get());
+        metrics.put("ignoredRequests", MetricsCollector.ignoredRequests.get());
+        metrics.put("emptyRequests", MetricsCollector.emptyRequests.get());
+        metrics.put("thresholdDroppedRequests", MetricsCollector.thresholdDroppedRequests.get());
 
         // Line collection
         metrics.put("totalLinesCollected", MetricsCollector.totalLinesCollected.get());
@@ -279,11 +378,16 @@ public class CodeCollecter implements Module, ModuleLifecycle {
         metrics.put("sendSuccess", MetricsCollector.sendSuccess.get());
         metrics.put("sendFailed", MetricsCollector.sendFailed.get());
         metrics.put("queueOfferFailed", MetricsCollector.queueOfferFailed.get());
+        metrics.put("queueDepth", LocalAsyncConfig.getQueueDepth());
+        metrics.put("queueCapacity", LocalAsyncConfig.getQueueCapacity());
+        metrics.put("queueCount", LocalAsyncConfig.getQueueCount());
+        metrics.put("queueRunning", LocalAsyncConfig.isRunning());
 
         // Circuit breaker
         metrics.put("circuitBreakerTripped", MetricsCollector.circuitBreakerTripped.get());
+        metrics.put("circuitBreakerDroppedRequests", MetricsCollector.circuitBreakerDroppedRequests.get());
         metrics.put("circuitBreakerPaused", DeepCoverConfig.exceptionThresholdTime > 0
-                && (System.currentTimeMillis() - DeepCoverConfig.exceptionThresholdTime) < DeepCoverConfig.exceptionPauseTime * 1000);
+                && (System.currentTimeMillis() - DeepCoverConfig.exceptionThresholdTime) < DeepCoverConfig.exceptionPauseTime * 1000L);
 
         writer.println(JSONObject.toJSONString(metrics));
         writer.flush();
@@ -296,6 +400,9 @@ public class CodeCollecter implements Module, ModuleLifecycle {
     }
 
     public void reportServerInfo(){
+        if (!DeepCoverConfig.configCenterEnabled || StringUtils.isBlank(DeepCoverConfig.configCenterAddr)) {
+            return;
+        }
         try {
             ReportServerEntity serverEntity = new ReportServerEntity();
             //获取本机域名
@@ -320,47 +427,39 @@ public class CodeCollecter implements Module, ModuleLifecycle {
                 if(info==null){
                     log.error("service_name:{},未在配置中心设置",DeepCoverConfig.serviceName);
                 }else if(info.getInteger("version")>DeepCoverConfig.configVersion) {
-                    log.warn("deepcover配置被修改，部分配置进行变更:{}",info.toString());
-
-                    DeepCoverConfig.sampleRate=(Integer) info.getOrDefault("sampleRate",DeepCoverConfig.sampleRate);
-                    //异常熔断规则
-                    DeepCoverConfig.exceptionThreshold=(Integer) info.getOrDefault("exceptionThreshold",10);
-                    DeepCoverConfig.exceptionCalcTime=(Integer) info.getOrDefault("exceptionCalcTime",1);
-                    DeepCoverConfig.exceptionPauseTime=(Integer) info.getOrDefault("exceptionPauseTime",5);
-
-                    DeepCoverConfig.reportPeriod=(Integer) info.getOrDefault("reportPeriod",DeepCoverConfig.reportPeriod);
-                    DeepCoverConfig.ignoreAnnos=(String) info.getOrDefault("ignoreAnnos",DeepCoverConfig.ignoreAnnos);
-                    DeepCoverConfig.ignoreUrls=(String) info.getOrDefault("ignoreUrls",DeepCoverConfig.ignoreUrls);
-                    DeepCoverConfig.configVersion=info.getInteger("version");
-                    DeepCoverConfig.limitCodeMethodSize=(Integer) info.getOrDefault("limitCodeMethodSize",DeepCoverConfig.limitCodeMethodSize);
-                    DeepCoverConfig.limitCodeMethodLineSize=(Integer) info.getOrDefault("limitCodeMethodLineSize",DeepCoverConfig.limitCodeMethodLineSize);
-                    DeepCoverConfig.sendDataCenterType=(Integer) info.getOrDefault("sendDataCenterType",2);
-
-                    DeepCoverConfig.queueMsgSize=(Integer) info.getOrDefault("queueMsgSize",50);
-                    DeepCoverConfig.queueRecycleTime=(Integer) info.getOrDefault("queueRecycleTime",10);
-
-                    int queueNum = (Integer) info.getOrDefault("queueNum",1);
-                    int queueSize = (Integer) info.getOrDefault("queueSize",100);
-                    int queueMsgSize = (Integer) info.getOrDefault("queueMsgSize",50);
-                    DeepCoverConfig.queueNum=queueNum;
-                    DeepCoverConfig.queueSize=queueSize;
-                    DeepCoverConfig.queueMsgSize = queueMsgSize;
-                    //                    if(CodeCoverageCollecter.codeEventWatcher!=null){
-//                        CodeCoverageCollecter.codeEventWatcher.onUnWatched();
-//                    }
-//                    ExecutorThreadPoolConfig.scheduleEx.schedule(new Thread(new Runnable() {
-//                        @Override
-//                        public void run() {
-//                            Thread.currentThread().setName("code-module-"+Thread.currentThread().getName());
-//                            new HttpCodeModule(moduleEventWatcher).run();
-//                        }
-//                    }), 0l,TimeUnit.SECONDS);
+                    String packageName = DeepCoverConfig.packageName;
+                    String ignoreClasses = DeepCoverConfig.ignoreClasses;
+                    String ignoreMethods = DeepCoverConfig.ignoreMethods;
+                    String ignoreAnnos = DeepCoverConfig.ignoreAnnos;
+                    Integer queueNum = DeepCoverConfig.queueNum;
+                    Integer queueSize = DeepCoverConfig.queueSize;
+                    Integer reportPeriod = DeepCoverConfig.reportPeriod;
+                    DeepCoverConfig.applyRemoteConfig(info);
+                    List<String> restartRequired = new ArrayList<>();
+                    if (!packageName.equals(DeepCoverConfig.packageName)) restartRequired.add("packageName");
+                    if (!ignoreClasses.equals(DeepCoverConfig.ignoreClasses)) restartRequired.add("ignoreClasses");
+                    if (!ignoreMethods.equals(DeepCoverConfig.ignoreMethods)) restartRequired.add("ignoreMethods");
+                    if (!ignoreAnnos.equals(DeepCoverConfig.ignoreAnnos)) restartRequired.add("ignoreAnnos");
+                    if (!queueNum.equals(DeepCoverConfig.queueNum)) restartRequired.add("queueNum");
+                    if (!queueSize.equals(DeepCoverConfig.queueSize)) restartRequired.add("queueSize");
+                    if (!reportPeriod.equals(DeepCoverConfig.reportPeriod)) restartRequired.add("reportPeriod");
+                    DeepCoverConfig.packageName = packageName;
+                    DeepCoverConfig.ignoreClasses = ignoreClasses;
+                    DeepCoverConfig.ignoreMethods = ignoreMethods;
+                    DeepCoverConfig.ignoreAnnos = ignoreAnnos;
+                    DeepCoverConfig.queueNum = queueNum;
+                    DeepCoverConfig.queueSize = queueSize;
+                    DeepCoverConfig.reportPeriod = reportPeriod;
+                    if (DeepCoverConfig.sendDataCenterType == 2) {
+                        KafkaProducerEngine.initKafka();
+                    }
+                    log.warn("deepcover动态配置已更新,restartRequired={}", restartRequired);
                 }
             }
 
             log.debug("当前线程：" + Thread.currentThread().getName() + " 当前时间" + LocalDateTime.now());
         }catch (Exception e){
-            log.warn("上报服务信息请求异常,url={},errMsg：{}", DeepCoverConfig.configCenterAddr+DeepCoverConfig.reportServerInfo,e.getMessage());
+            log.warn("上报服务信息请求异常,url={}", DeepCoverConfig.configCenterAddr+DeepCoverConfig.reportServerInfo,e);
         }
     }
 }

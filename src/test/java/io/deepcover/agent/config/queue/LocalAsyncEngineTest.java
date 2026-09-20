@@ -7,9 +7,12 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.*;
 
@@ -23,6 +26,8 @@ public class LocalAsyncEngineTest {
     @Before
     public void setUp() {
         DeepCoverConfig.queueRecycleTime = 100;
+        DeepCoverConfig.queueMsgSize = 10;
+        TestConsumer.reset();
         // 构造函数: (int qNum, int qSize, int maxMsgSize, long consumeSlpTime,
         //             Class<? extends LocalAsyncConsumer> consumeClazz, Map consumeProperties)
         engine = new LocalAsyncEngine(2, 5, 10, 100L,
@@ -89,16 +94,82 @@ public class LocalAsyncEngineTest {
         engine.shutdown();
     }
 
+    @Test
+    public void testOfferRejectedAfterShutdown() {
+        engine.shutdown();
+        assertFalse(engine.offerMsg(createCodeEntity("trace-stopped", "/api/stopped")));
+        assertEquals(0, engine.getQueueDepth());
+    }
+
+    @Test
+    public void testConsumerHonorsBatchSize() throws InterruptedException {
+        engine.shutdown();
+        TestConsumer.reset();
+        DeepCoverConfig.queueMsgSize = 3;
+        engine = new LocalAsyncEngine(1, 20, 3, 10L,
+                TestConsumer.class, new HashMap<String, Object>());
+        engine.start();
+
+        for (int i = 0; i < 10; i++) {
+            assertTrue(engine.offerMsg(createCodeEntity("trace-batch-" + i, "/api/batch")));
+        }
+
+        assertTrue("Consumer should process all queued messages", waitForConsumedCount(10, 2));
+        for (Integer batchSize : TestConsumer.batchSizes) {
+            assertTrue("Batch size should not exceed configured limit", batchSize <= 3);
+        }
+    }
+
+    @Test
+    public void testShutdownDrainsQueuedMessages() {
+        engine.shutdown();
+        TestConsumer.reset();
+        DeepCoverConfig.queueRecycleTime = 1000;
+        engine = new LocalAsyncEngine(1, 20, 5, 1000L,
+                TestConsumer.class, new HashMap<String, Object>());
+        engine.start();
+
+        for (int i = 0; i < 10; i++) {
+            assertTrue(engine.offerMsg(createCodeEntity("trace-drain-" + i, "/api/drain")));
+        }
+
+        engine.shutdown();
+        assertEquals("Shutdown should drain accepted messages", 10, TestConsumer.consumedCount.get());
+        assertEquals(0, engine.getQueueDepth());
+        assertFalse(engine.isRunning());
+    }
+
+    private boolean waitForConsumedCount(int expected, int timeoutSeconds) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
+        while (System.nanoTime() < deadline) {
+            if (TestConsumer.consumedCount.get() >= expected) {
+                return true;
+            }
+            Thread.sleep(10);
+        }
+        return TestConsumer.consumedCount.get() >= expected;
+    }
+
     /**
      * 测试用 Consumer 实现
      */
     public static class TestConsumer implements LocalAsyncConsumer {
+        private static final AtomicInteger consumedCount = new AtomicInteger();
+        private static final List<Integer> batchSizes = Collections.synchronizedList(new ArrayList<Integer>());
+
+        static void reset() {
+            consumedCount.set(0);
+            batchSizes.clear();
+        }
+
         @Override
         public void init(Map<String, Object> props) {
         }
 
         @Override
         public void consume(List<CodeEntity> msg) {
+            batchSizes.add(msg.size());
+            consumedCount.addAndGet(msg.size());
         }
 
         @Override

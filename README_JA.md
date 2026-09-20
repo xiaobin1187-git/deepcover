@@ -1,7 +1,10 @@
 <p align="center"><img src="docs/assets/logo.svg" alt="DeepCover" width="96" height="96"></p>
-# DeepCover - フルチェーンプレシジョン分析収集エージェント
+
+# DeepCover - JVMランタイムのリクエスト・コード関連収集エージェント
 
 [中文](README.md) | [English](README_EN.md) | **日本語** | [Francais](README_FR.md) | [Portugues](README_PT.md) | [Русский](README_RU.md)
+
+> 翻訳上の注意: 機能境界とBenchmarkは[中国語README](README.md)より遅れている場合があります。現在の実装については中国語版を正とします。
 
 <div align="center">
 
@@ -9,11 +12,11 @@
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
 ![Java](https://img.shields.io/badge/Java-1.8-orange)
 ![Maven](https://img.shields.io/badge/Maven-3.5-blue)
-![Tests](https://img.shields.io/badge/Tests-52_passed-brightgreen)
+![Tests](https://img.shields.io/badge/Tests-66_passed-brightgreen)
 
 </div>
 
-> JVM Sandbox ベースの Java プレシジョン分析収集ツール - 非侵襲的なラインレベルプレシジョン分析モニタリング
+> JVM Sandbox ベースの Java プレシジョンデータ収集ツール - 非侵襲的なラインレベル分析モニタリング
 
 ## 概要
 
@@ -22,12 +25,11 @@ DeepCover は、Alibaba JVM Sandbox をベースにした**非侵襲型 Java プ
 ### 主な特徴
 
 - **非侵襲収集** -- JVM Sandbox バイトコード拡張技術に基づき、アプリケーションコードの変更不要
-- **ラインレベルプレシジョン分析** -- コード各行の実行記録を精密に取得
+- **ラインレベル分析** -- コード各行の実行記録を精密に取得
 - **HTTP リクエストトレーシング** -- HTTP Servlet リクエストの自動識別と追跡
-- **高性能設計** -- 非同期キュー + バッチ送信により、アプリケーションへの影響を最小化
+- **有界非同期キュー** -- リクエストスレッドから送信処理を分離
 - **柔軟な設定** -- クラス名、メソッド名、サンプリングレート等のきめ細かい設定、設定センターによる動的ホットリロード対応
 - **複数エクスポート方式** -- HTTP、Kafka の2つのデータエクスポート方式をサポート
-- **OpenTelemetry 連携** -- OpenTelemetry 標準に準拠し、分散トレーシングに対応
 
 ### システムアーキテクチャ
 
@@ -55,7 +57,7 @@ DeepCover は、Alibaba JVM Sandbox をベースにした**非侵襲型 Java プ
               │                                  │
      ┌────────┴────────┐              ┌─────────┴─────────┐
      │  データセンター   │              │  Kafka Cluster     │
-     │  (HTTP)          │              │  precision-analysis     │
+     │  (HTTP)          │              │  code-coverage     │
      │  /api/collect    │              │                    │
      └────────┬────────┘              └─────────┬─────────┘
               │                                  │
@@ -65,8 +67,8 @@ DeepCover は、Alibaba JVM Sandbox をベースにした**非侵襲型 Java プ
               │  データ処理 /            │
               │  ストレージサービス       │
               │                         │
-              │  - プレシジョン分析計算         │
-              │  - 差分プレシジョン分析分析     │
+              │  - 分析計算         │
+              │  - 差分分析分析     │
               │  - データ永続化          │
               │  - レポート生成          │
               └─────────────────────────┘
@@ -131,7 +133,7 @@ DeepCover は、Alibaba JVM Sandbox をベースにした**非侵襲型 Java プ
 
 ### 設定ホットリロード機構
 
-ランタイム設定は再起動なしで動的に更新可能：
+一部のランタイム設定のみ再起動なしで更新できます。構造設定には再起動が必要です：
 
 ```
 ┌────────────────┐     定期ポーリング (reportPeriod) ┌──────────────────┐
@@ -201,7 +203,7 @@ tail -f ~/sandbox/sandbox.log | grep "code-module"
 mvn clean test -Dmaven.javadoc.skip=true
 ```
 
-現在41のユニットテストがコアユーティリティとエンティティクラスをカバーしています。
+現在、ルートプロジェクトには66のユニットテストがあります。
 
 ## 設定
 
@@ -234,7 +236,7 @@ cp src/main/resources/deepcover.properties.example src/main/resources/deepcover.
 | `exceptionCalcTime` | 例外計算時間窓（分） | `1` |
 | `exceptionPauseTime` | サーキットブレーカー停止時間（秒） | `5` |
 
-全設定項目は `syncConfig` コマンドによる動的ホットリロードに対応。アプリケーションの再起動は不要です。
+`syncConfig` で即時反映できるのは一部の設定だけです。構造設定は `restartRequired` として返されます。
 
 ### サンプリングレート
 
@@ -271,7 +273,7 @@ curl -X POST "http://sandbox-server:port/sandbox/default/module/http/deepcover/s
 DeepCover は以下の戦略でアプリケーションへのパフォーマンス影響を最小化：
 
 - **非同期キュー**: データ送信に独立スレッドプール（core=4, max=8, queue=256）を使用、CallerRunsPolicy でタスク消失を防止
-- **バッチ処理**: ローカルキューでバッチ集約して送信、ネットワークオーバーヘッドを削減
+- **キュー分離**: ローカルキューで送信処理をリクエストスレッドから分離。HTTP は現在ペイロードごとに送信
 - **サンプリング機構**: traceId ベースの確定的サンプリング、サンプリングレートをオンデマンドで調整可能
 - **スマートスロットリング**: メソッドの行番号が閾値に達したら自動的に該当メソッドの行収集を停止
 - **サーキットブレーカー**: 送信例外が閾値を超えたら自動的に収集を停止し、カスケード障害を防止
@@ -302,7 +304,7 @@ deepcover/
 │   │       ├── TraceUtil.java       # サンプリング計算
 │   │       ├── ExceptionAwareUtil.java  # サーキットブレーカー
 │   │       └── http/HttpClient2.java # HTTP クライアント
-│   └── test/java/                   # ユニットテスト（41 ケース）
+│   └── test/java/                   # ユニットテスト（66 ケース）
 ├── src/main/resources/
 │   ├── deepcover.properties.example  # 設定テンプレート
 │   └── logback.xml
@@ -324,7 +326,6 @@ deepcover/
 | 依存関係 | バージョン | 用途 |
 |----------|-----------|------|
 | Alibaba JVM Sandbox | 1.4.0 | バイトコード拡張フレームワーク |
-| OpenTelemetry API | 1.30.0 | 分散トレーシング標準 |
 | Apache HttpClient | 4.5.6 | HTTP データ送信 |
 | Hutool | 5.8.9 | HTTP ユーティリティ（設定センター報告） |
 | FastJSON | 2.0.25 | JSON シリアライズ |
