@@ -85,6 +85,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/lang/zh-CN/
 
 ## [Unreleased]
 
+### 新增
+
+- 可复现 Benchmark 工具，支持固定目标 RPS、CPU/RSS 采样、队列排空和发送一致性校验
+- 独立运行的嵌入式 Jetty demo JAR
+- 请求丢弃原因、采集行数和队列运行状态指标
+
+### 修复
+
+- 修正 traceId 采样语义，`10000=100%`、`1000=10%`
+- 支持 W3C `traceparent`、B3 和自定义 trace header，并在请求结束时清理上下文
+- 修正本地消费线程启动/关闭竞态和中断告警循环，关闭时有界排空队列
+- 修正 HTTP/Kafka 发送成功与失败计数，HTTP 客户端改为按需初始化并可关闭重建
+- 配置中心改为可选，补充 JVM 系统属性、启动校验和结构配置重启提示
+- 移除当前实现未使用的 OpenTelemetry 和本地 `sandbox-spy.jar` Maven 依赖
+
+### 文档
+
+- 增加 Why DeepCover、精准测试闭环架构、能力边界和非目标
+- 增加 50/100/200 RPS、10%/100% 采样的实测结果与限制说明
+- 配置与部署文档按当前源码行为重写
+
+### 测试
+
+- 根工程单元测试增加到 66 个
+
 ### 计划中
 
 - 支持更多采集策略配置

@@ -99,6 +99,6 @@ public class ExceptionAwareUtil {
         for (Map.Entry<String, AtomicInteger> entry : errorCached.entrySet()) {
             builder.append("[").append(entry.getKey()).append("];count[").append(entry.getValue().get()).append("]\n\r");
         }
-        log.error("采集暂停:{}分钟,异常总数:{}>={},异常原因:{}",DeepCoverConfig.exceptionPauseTime,counter.get(),DeepCoverConfig.exceptionThreshold,builder.toString());
+        log.error("采集暂停:{}秒,异常总数:{}>={},异常原因:{}",DeepCoverConfig.exceptionPauseTime,counter.get(),DeepCoverConfig.exceptionThreshold,builder.toString());
     }
 }

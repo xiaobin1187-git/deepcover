@@ -18,6 +18,7 @@ package io.deepcover.agent.config.queue;
 
 import io.deepcover.agent.config.DeepCoverConfig;
 import io.deepcover.agent.entity.CodeEntity;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,11 +30,12 @@ import java.util.List;
  * @Date 2024/3/15-9:32
  * @Version 1.0
  */
+@Slf4j
 public class LocalAsyncConsumeThread extends Thread {
 
-    private volatile boolean running;
+    private volatile boolean running = true;
     private volatile long recycleTime;
-    private int maxQueueSize;
+    private int maxBatchSize;
     private LocalAsyncEngine.QueueAndSize queue;
     private LocalAsyncConsumer localAsyncHandler;
 
@@ -48,26 +50,38 @@ public class LocalAsyncConsumeThread extends Thread {
         super(threadName);
         this.queue = queue;
         this.recycleTime = recycleTime;
-        this.maxQueueSize = maxQueueSize;
+        this.maxBatchSize = maxQueueSize;
         this.localAsyncHandler = localAsyncHandler;
     }
 
     @Override
     public void run() {
-        this.running = true;
         while (this.running) {
             if (!consume()) {
                 try {
-                    Thread.sleep(DeepCoverConfig.queueRecycleTime);
+                    long sleepMillis = DeepCoverConfig.queueRecycleTime == null
+                            ? recycleTime
+                            : DeepCoverConfig.queueRecycleTime;
+                    Thread.sleep(Math.max(1L, sleepMillis));
                 } catch (InterruptedException e) {
+                    if (this.running) {
+                        log.warn("queue consumer interrupted", e);
+                    }
+                    this.running = false;
                 }
             }
+        }
+        while (consume()) {
+            // Drain queued messages before stopping.
         }
     }
 
     private boolean consume() {
-        List<CodeEntity> consumeList = new ArrayList<>(maxQueueSize);
-        queue.drainTo(consumeList);
+        int batchSize = DeepCoverConfig.queueMsgSize == null
+                ? maxBatchSize
+                : Math.max(1, DeepCoverConfig.queueMsgSize);
+        List<CodeEntity> consumeList = new ArrayList<>(batchSize);
+        queue.drainTo(consumeList, batchSize);
         if (!consumeList.isEmpty()) {
             try {
                 localAsyncHandler.consume(consumeList);
@@ -83,5 +97,6 @@ public class LocalAsyncConsumeThread extends Thread {
 
     public void shutdown() {
         this.running = false;
+        interrupt();
     }
 }

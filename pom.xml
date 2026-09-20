@@ -25,13 +25,6 @@
     </properties>
 
     <dependencies>
-        <dependency>
-            <groupId>com.alibaba.jvm.sandbox</groupId>
-            <artifactId>sandbox-spy</artifactId>
-            <scope>system</scope>
-            <version>1.4.0</version>
-            <systemPath>${project.basedir}/sandbox/lib/sandbox-spy.jar</systemPath>
-        </dependency>
         <!-- logger -->
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -82,7 +75,6 @@
             <artifactId>guava</artifactId>
             <version>18.0</version>
         </dependency>
-         <!-- 内部依赖 - 已替换为 OpenTelemetry 以支持开源 -->
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-core</artifactId>
@@ -100,12 +92,6 @@
             <artifactId>kafka-clients</artifactId>
             <version>2.4.1</version>
         </dependency>
-        <dependency>
-            <groupId>io.opentelemetry</groupId>
-            <artifactId>opentelemetry-api</artifactId>
-             <version>1.30.0</version>
-         </dependency>
-
         <!-- test dependencies -->
         <dependency>
             <groupId>junit</groupId>

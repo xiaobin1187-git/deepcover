@@ -1,9 +1,13 @@
 package io.deepcover.examples.demo.service;
 
+import com.alibaba.fastjson.JSONObject;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Simple user service for demo.
@@ -11,7 +15,8 @@ import java.util.Map;
  */
 public class UserService {
 
-    private Map<String, Map<String, String>> users = new HashMap<>();
+    private final Map<String, Map<String, String>> users = new ConcurrentHashMap<>();
+    private final AtomicLong nextUserId = new AtomicLong(2);
 
     public UserService() {
         Map<String, String> user = new HashMap<>();
@@ -44,7 +49,7 @@ public class UserService {
         if (email == null || email.isEmpty()) {
             return toJsonError("email is required");
         }
-        String id = String.valueOf(users.size() + 1);
+        String id = String.valueOf(nextUserId.getAndIncrement());
         Map<String, String> user = new HashMap<>();
         user.put("id", id);
         user.put("name", name);
@@ -65,10 +70,10 @@ public class UserService {
     }
 
     private String toJson(String action, Object data) {
-        return "{\"action\":\"" + action + "\",\"data\":" + data.toString().replace("=", "\":\"").replace(", ", "\",\"") + "}";
+        return new JSONObject().fluentPut("action", action).fluentPut("data", data).toJSONString();
     }
 
     private String toJsonError(String message) {
-        return "{\"error\":\"" + message + "\"}";
+        return new JSONObject().fluentPut("error", message).toJSONString();
     }
 }

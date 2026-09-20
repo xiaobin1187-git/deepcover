@@ -1,5 +1,7 @@
 package io.deepcover.examples.demo.controller;
 
+import io.deepcover.examples.demo.service.UserService;
+
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;

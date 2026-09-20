@@ -25,7 +25,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * 本地异步处理引擎
@@ -39,14 +41,14 @@ public class LocalAsyncEngine {
 
     private int qNum;
     private int qSize;
-    private int maxMsgSize;//单位MB
+    private int maxMsgSize;
     private long consumeSlpTime;
     private Class localAsyncHandler;
     private Map<String, Object> consumeProps;
     private List<QueueAndSize> qList;
     private volatile int round = 0; //不是严格一致的，考虑性能
     private List<LocalAsyncConsumeThread> consumeThreads;
-    private Object lock = new Object();
+    private final ReentrantReadWriteLock lifecycleLock = new ReentrantReadWriteLock();
     private volatile boolean running = false;
 
 
@@ -77,7 +79,11 @@ public class LocalAsyncEngine {
      * 启动异步处理引擎
      */
     public void start() {
-        synchronized (lock) {
+        lifecycleLock.writeLock().lock();
+        try {
+            if (this.running) {
+                return;
+            }
             qList = new ArrayList<>();
             consumeThreads = new ArrayList<>();
             for (int i = 0; i < qNum; i++) {
@@ -85,14 +91,16 @@ public class LocalAsyncEngine {
                 qList.add(queueAndSize);
                 LocalAsyncConsumer consumer = createNewConsumer(this.localAsyncHandler);
                 String threadName = "LocalAsyncEngine.Consumer." + i + ".Thread";
-                LocalAsyncConsumeThread td = new LocalAsyncConsumeThread(threadName, consumer, queueAndSize, this.qSize, this.consumeSlpTime);
+                LocalAsyncConsumeThread td = new LocalAsyncConsumeThread(threadName, consumer, queueAndSize, this.maxMsgSize, this.consumeSlpTime);
                 td.setDaemon(true);
                 consumeThreads.add(td);
             }
+            this.running = true;
             for (int i = 0; i < qNum; i++) {
                 consumeThreads.get(i).start();
             }
-            this.running = true;
+        } finally {
+            lifecycleLock.writeLock().unlock();
         }
     }
 
@@ -110,14 +118,27 @@ public class LocalAsyncEngine {
         if (codeEntity == null) {
             return false;
         }
-        int queueSelect = Math.abs(round++ % qNum);
-        QueueAndSize queueAndSize = qList.get(queueSelect);
-        boolean isSend = queueAndSize.offer(codeEntity);
-        if(!isSend){
+        lifecycleLock.readLock().lock();
+        try {
+            if (!running || qList == null) {
+                MetricsCollector.queueOfferFailed.incrementAndGet();
+                MetricsCollector.droppedRequests.incrementAndGet();
+                log.warn("发送队列未运行,不发送,traceId={},url={}", codeEntity.getTraceId(), codeEntity.getUrl());
+                return false;
+            }
+            int queueSelect = Math.abs(round++ % qNum);
+            QueueAndSize queueAndSize = qList.get(queueSelect);
+            boolean isSend = queueAndSize.offer(codeEntity);
+            if (isSend) {
+                return true;
+            }
             MetricsCollector.queueOfferFailed.incrementAndGet();
+            MetricsCollector.droppedRequests.incrementAndGet();
             log.warn("发送队列已满,不发送,队列{}当前长度={},traceId={},url={}",queueSelect,queueAndSize.queue.size(),codeEntity.getTraceId(),codeEntity.getUrl());
+            return false;
+        } finally {
+            lifecycleLock.readLock().unlock();
         }
-        return isSend;
     }
 
       /*
@@ -131,15 +152,62 @@ public class LocalAsyncEngine {
     }*/
 
     public void shutdown() {
-        synchronized (this.lock) {
+        List<LocalAsyncConsumeThread> threadsToStop;
+        lifecycleLock.writeLock().lock();
+        try {
             if (!this.running) {
                 return;
             }
-            for (LocalAsyncConsumeThread td : this.consumeThreads) {
+            this.running = false;
+            threadsToStop = new ArrayList<>(this.consumeThreads);
+            for (LocalAsyncConsumeThread td : threadsToStop) {
                 td.shutdown();
             }
-            this.running = false;
+        } finally {
+            lifecycleLock.writeLock().unlock();
         }
+
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        for (LocalAsyncConsumeThread td : threadsToStop) {
+            long remainingNanos = deadline - System.nanoTime();
+            if (remainingNanos <= 0) {
+                break;
+            }
+            try {
+                TimeUnit.NANOSECONDS.timedJoin(td, remainingNanos);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("interrupted while waiting for queue consumer shutdown", e);
+                break;
+            }
+        }
+        for (LocalAsyncConsumeThread td : threadsToStop) {
+            if (td.isAlive()) {
+                log.warn("queue consumer did not stop within timeout,thread={}", td.getName());
+            }
+        }
+    }
+
+    public int getQueueDepth() {
+        int depth = 0;
+        if (qList != null) {
+            for (QueueAndSize queueAndSize : qList) {
+                depth += queueAndSize.queue.size();
+            }
+        }
+        return depth;
+    }
+
+    public int getQueueCapacity() {
+        return qNum * qSize;
+    }
+
+    public int getQueueCount() {
+        return qNum;
+    }
+
+    public boolean isRunning() {
+        return running;
     }
 
     static class QueueAndSize {
@@ -159,8 +227,8 @@ public class LocalAsyncEngine {
             return queue.take();
         }
 
-        public int drainTo(Collection c) {
-            return queue.drainTo(c);
+        public int drainTo(Collection c, int maxElements) {
+            return queue.drainTo(c, maxElements);
         }
     }
 

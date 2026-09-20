@@ -19,13 +19,12 @@ package io.deepcover.agent.config.kafka;
 import io.deepcover.agent.config.DeepCoverConfig;
 import io.deepcover.agent.entity.CodeEntity;
 import io.deepcover.agent.util.ExceptionAwareUtil;
+import io.deepcover.agent.util.MetricsCollector;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.*;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
-import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public class KafkaProducerEngine {
@@ -63,7 +62,9 @@ public class KafkaProducerEngine {
     public static void sendMessage(CodeEntity codeInfo){
         if(producer==null){
             log.warn("kafka生产者初始化失败，无法发送，请选择其他发送方式");
+            MetricsCollector.sendFailed.incrementAndGet();
             ExceptionAwareUtil.exceptionOverflow(new NullPointerException("kafka producer is null"));
+            return;
         }
         //发送消息，并获得一个Future对象。
         ProducerRecord<String, String> kafkaMessage =  new ProducerRecord<String, String>(DeepCoverConfig.KAFKA_TOPIC, codeInfo.toString());
@@ -71,8 +72,11 @@ public class KafkaProducerEngine {
             @Override
             public void onCompletion(RecordMetadata recordMetadata, Exception e) {
                 if (e != null) {
+                    MetricsCollector.sendFailed.incrementAndGet();
                     log.warn("kafka发送失败，请选择其他发送方式，codeInfo={}",codeInfo.toString(),e);
                     ExceptionAwareUtil.exceptionOverflow(e);
+                } else {
+                    MetricsCollector.sendSuccess.incrementAndGet();
                 }
             }
         });
@@ -94,7 +98,9 @@ public class KafkaProducerEngine {
     public static void batchSendMessage(List<CodeEntity> codeList){
         if(producer==null){
             log.warn("kafka生产者初始化失败，无法发送，请选择其他发送方式");
+            MetricsCollector.sendFailed.addAndGet(codeList.size());
             ExceptionAwareUtil.exceptionOverflow(new NullPointerException("kafka producer is null"));
+            return;
         }
         //发送消息，并获得一个Future对象。
         for(CodeEntity codeInfo:codeList){
@@ -106,8 +112,11 @@ public class KafkaProducerEngine {
                 @Override
                 public void onCompletion(RecordMetadata recordMetadata, Exception e) {
                     if (e != null) {
+                        MetricsCollector.sendFailed.incrementAndGet();
                         log.warn("kafka发送失败，请选择其他发送方式，codeInfo={}",codeInfo.toString(),e);
                         ExceptionAwareUtil.exceptionOverflow(e);
+                    } else {
+                        MetricsCollector.sendSuccess.incrementAndGet();
                     }
 //                    else{
 //                        log.info("kafka发送成功,url={},traceId={}",codeInfo.getUrl(),codeInfo.getTraceId());

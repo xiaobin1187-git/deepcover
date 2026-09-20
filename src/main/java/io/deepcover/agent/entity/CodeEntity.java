@@ -55,6 +55,7 @@ public class CodeEntity implements Serializable{
     private ArrayList<LineEntity> codeInfo;
     private Integer  codeInfoSize;
     private Integer isSend;
+    private boolean thresholdExceeded;
 
     @Override
     public String toString() {

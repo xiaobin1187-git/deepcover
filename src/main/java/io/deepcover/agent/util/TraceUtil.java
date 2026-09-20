@@ -17,51 +17,30 @@
 package io.deepcover.agent.util;
 
 import io.deepcover.agent.config.DeepCoverConfig;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.math.NumberUtils;
 
-@Slf4j
 public class TraceUtil {
 
-    private static boolean isValid(String traceId) {
-        if (StringUtils.isBlank(traceId) || "N/A".equals(traceId) || "Ignored_Trace".equals(traceId)) {
-            return false;
-        }
-        int len = traceId.length();
-        if (len < 5 || len > 40) {
-            log.warn("traceId:{},格式长度异常", traceId);
-            return false;
-        }
-
-        return NumberUtils.isDigits(traceId.substring(len - 6, len - 1));
-    }
+    private static final int SAMPLE_BASE = 10000;
 
     /**
-     * 及时计算采样
+     * 基于 traceId 的稳定哈希进行万分比采样。
      *
      * @param traceId
      * @return 是否被采样
      */
     public static boolean inTimeSample(String traceId) {
-        if (isValid(traceId)) {
-            String[] tras = traceId.split("T|\\.");
-            if (tras.length != 3) {
-                log.warn("traceId:{},格式不支持", traceId);
-                return false;
-            }
-//            int theadIdEnd = Integer.parseInt(tras[1].substring(tras[1].length()-1,tras[1].length()));
-            Long calTrace;
-            try {
-                calTrace = Long.parseLong(tras[2].substring(tras[2].length() - 7, tras[2].length() - 4));
-            } catch (StringIndexOutOfBoundsException ex) {
-                log.warn("StringIndexOutOfBoundsException cause by traceId:{}, tras[2]:{} substring .", traceId, tras[2]);
-                return false;
-            }
-            return calTrace < DeepCoverConfig.sampleRate;
-        } else {
+        if (StringUtils.isBlank(traceId) || DeepCoverConfig.sampleRate == null || DeepCoverConfig.sampleRate <= 0) {
             return false;
         }
+        if (DeepCoverConfig.sampleRate >= SAMPLE_BASE) {
+            return true;
+        }
+        return sampleBucket(traceId) < DeepCoverConfig.sampleRate;
+    }
+
+    static int sampleBucket(String traceId) {
+        return (traceId.hashCode() & Integer.MAX_VALUE) % SAMPLE_BASE;
     }
 
 }
